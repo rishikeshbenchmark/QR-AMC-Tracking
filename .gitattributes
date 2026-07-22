@@ -1,0 +1,21 @@
+# Normalise line endings in the repository to LF regardless of the developer's OS.
+# Without this, three Windows machines produce whole-file diffs on every commit.
+* text=auto eol=lf
+
+# Windows-native scripts must keep CRLF or they break when executed.
+*.bat  text eol=crlf
+*.cmd  text eol=crlf
+*.ps1  text eol=crlf
+
+# Binary — never touch, never diff.
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.gif  binary
+*.ico  binary
+*.pdf  binary
+*.woff binary
+*.woff2 binary
+
+# Generated: collapse in pull requests.
+package-lock.json linguist-generated=true -diff

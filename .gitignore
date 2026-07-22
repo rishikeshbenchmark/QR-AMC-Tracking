@@ -1,0 +1,39 @@
+# dependencies
+node_modules/
+.npm/
+
+# env — never commit; .env.example carries dummy values
+.env
+.env.*
+!.env.example
+
+# build output
+dist/
+build/
+*.tsbuildinfo
+
+# prisma
+server/prisma/generated/
+
+# logs
+*.log
+npm-debug.log*
+logs/
+
+# test / coverage
+coverage/
+.vitest/
+
+# editor / OS
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea/
+Thumbs.db
+Desktop.ini
+*.swp
+
+# runtime artifacts
+uploads/
+labels/
+*.pdf
