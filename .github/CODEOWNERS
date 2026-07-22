@@ -1,0 +1,15 @@
+# Every pull request requires the project lead's review before merge.
+*                       @rishikeshbenchmark
+
+# Schema and migrations: lead only, no exceptions.
+# Three people generating migrations against three local databases produces three
+# histories that cannot be merged. See server/prisma/MIGRATIONS.md.
+/db/                    @rishikeshbenchmark
+/server/prisma/         @rishikeshbenchmark
+
+# Shared foundations — a change here affects every feature branch at once.
+/server/src/config/     @rishikeshbenchmark
+/server/src/shared/     @rishikeshbenchmark
+/server/src/middlewares/ @rishikeshbenchmark
+/client/src/api/        @rishikeshbenchmark
+/client/src/components/ @rishikeshbenchmark

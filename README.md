@@ -101,6 +101,51 @@ Run from the repository root.
 
 ## Branching
 
-`main` is always deployable. One branch per task, squash-merged via PR:
-`feat/masters-suppliers`, `fix/serial-case-dup`, `docs/adr-status-model`. Conventional Commits for
-messages. The PR checklist lives in CLAUDE.md — answer it honestly before merging.
+Trunk-based. `main` is protected and always deployable; everything else is a short-lived branch
+that exists for one task and is deleted the moment it merges. **No `develop` branch, no gitflow** —
+with a small team and a hard deadline, long-lived branches only buy merge conflicts.
+
+**Branches are named for the work, never for the person.** A branch called `darsh` accumulates
+unrelated changes for a fortnight and becomes unmergeable; `feat/masters-makes-models` merges on
+Thursday and disappears.
+
+```
+feat/<area>-<thing>     feat/masters-suppliers, feat/assets-step1-api
+fix/<what-was-broken>   fix/serial-case-dup
+chore/<task>            chore/ci-mssql
+docs/<what>             docs/adr-status-model
+```
+
+### Current assignments
+
+| Branch | Owner | Scope |
+|---|---|---|
+| `feat/masters-categories` | Rishikesh | **The template.** Full stack, one master, end to end — every other master copies its shape. |
+| `feat/masters-makes-models` | Darsh (`darskgk-04`) | Makes + Models. Both have a parent dropdown, and the model list filters by the chosen make. |
+| `feat/masters-suppliers` | Soham (`co2024sohamsagare-cmyk`) | Suppliers + AMC Suppliers. Name, plus optional email on suppliers. |
+| `feat/masters-customers` | Ritesh (`Ritesh0605`) | Customers, plus the tabbed shell that hosts all six master screens. |
+
+### The loop
+
+```bash
+git checkout main && git pull                 # always start from current main
+git checkout feat/masters-suppliers           # your branch
+# …work, committing as you go…
+git push -u origin feat/masters-suppliers
+# open a PR on GitHub, fill in the template, request review
+```
+
+Then: squash-merge, delete the branch. One idea per commit, Conventional Commits for the message
+(`feat(masters): supplier CRUD with soft delete`).
+
+### Rules that are not negotiable
+
+1. **Never push to `main`.** It is protected; the push will be rejected. Open a PR.
+2. **Never create or edit a Prisma migration.** Only the lead does — see
+   `server/prisma/MIGRATIONS.md` for why. If your work needs a schema change, ask.
+3. **Never edit a file outside your scope** to make your branch work. If you need something changed
+   in `shared/`, `components/`, `config/` or `middlewares/`, ask — those are shared surfaces and two
+   people editing them in parallel is how a morning disappears.
+4. **Rebase, don't merge.** `git pull --rebase origin main` keeps history linear and reviewable.
+5. **Push at least once a day**, even if unfinished. Work that only exists on your laptop is work
+   nobody can help you with.
