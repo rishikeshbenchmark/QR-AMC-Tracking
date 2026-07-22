@@ -13,7 +13,7 @@ disagree, CLAUDE.md wins.
 | Layer | Choice |
 |---|---|
 | Backend | Node 20+ · TypeScript · Express 5 |
-| ORM / DB | Prisma 6 (`provider = "sqlserver"`) · SQL Server 2022 (Docker in dev) |
+| ORM / DB | Prisma 6 (`provider = "sqlserver"`) · SQL Server 2022 Developer Edition |
 | Frontend | React 19 · Vite · Mantine 8 · TanStack Query · React Router 7 |
 | Validation | zod, at every boundary, front and back |
 | Auth | JWT bearer + bcrypt |
@@ -22,7 +22,6 @@ disagree, CLAUDE.md wins.
 
 ```
 QR-AMC-Tracking-system/
-├── docker-compose.yml      SQL Server 2022 for local development
 ├── db/schema.sql           canonical DDL — schema.prisma is derived FROM this, never the reverse
 ├── server/
 │   ├── prisma/             schema.prisma, migrations/, seed.ts
@@ -45,34 +44,62 @@ Feature modules appear as they are built — the tree above is the destination, 
 
 ## First-time setup
 
-Prerequisites: **Node 20.11+**, **Docker Desktop**, **Git**.
+Prerequisites: **Node 20.11+**, **SQL Server 2022 Developer Edition**, **SSMS**, **Git**.
+
+### 1. Install SQL Server 2022 Developer Edition
+
+Free and full-featured — the same engine as production, so what works here works on the company
+server. Download it from Microsoft, choose **Basic** installation, and then get these three things
+right, because each one blocks the connection and none of them announces itself:
+
+1. **Authentication: choose "Mixed Mode"**, not Windows-only. Set an `sa` password and write it
+   down. Windows-only auth is the default, and Prisma cannot use it.
+2. **Enable TCP/IP.** Open *SQL Server Configuration Manager* → *SQL Server Network Configuration*
+   → *Protocols for MSSQLSERVER* → set **TCP/IP** to *Enabled*. It ships disabled.
+3. **Restart the SQL Server service** after enabling TCP/IP. The change does nothing until you do.
+
+Then install **SQL Server Management Studio (SSMS)** and connect to `localhost` with the `sa`
+account to confirm it all works before touching the app.
+
+> **If you previously ran the Docker container:** stop it first — `docker rm -f qramc-mssql` — or it
+> keeps port 1433 and you will connect to the old container without realising it. Symptoms are
+> confusing: migrations appear to work but SSMS shows no tables.
+
+### 2. Set up the project
 
 ```bash
-git clone <repo-url>
-cd QR-AMC-Tracking-system
-npm install                    # installs both workspaces from the root
+git clone https://github.com/rishikeshbenchmark/QR-AMC-Tracking.git
+cd QR-AMC-Tracking
+npm install                          # installs both workspaces from the root
 
-cp .env.example .env           # SQL Server SA password for docker-compose
 cp server/.env.example server/.env
 cp client/.env.example client/.env
 ```
 
-Then edit the env files:
+Edit `server/.env`:
 
-1. Pick an `MSSQL_SA_PASSWORD` in the root `.env`. SQL Server rejects weak ones silently — 8+ chars
-   with upper, lower, digit and symbol.
-2. Put **that same password** into `DATABASE_URL` in `server/.env`.
-3. Generate a real `JWT_SECRET`:
+1. Put your `sa` password into `DATABASE_URL`.
+2. Generate a real `JWT_SECRET`:
    `node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"`
 
 ```bash
-npm run db:up                  # start SQL Server (first pull is ~1.5 GB)
-npm run db:migrate             # apply migrations
-npm run db:seed                # one company, roles, permissions, an admin user
-npm run dev                    # API on :4000, client on :5173
+npm run db:migrate                   # creates the qramc database and applies migrations
+npm run db:seed                      # one company, roles, permissions, an admin user
+npm run dev                          # API on :4000, client on :5173
 ```
 
 Verify: `curl http://localhost:4000/api/v1/health` returns `{"data":{"status":"ok",…}}`.
+
+### If the connection fails
+
+Almost always one of the three install steps above. In order of likelihood:
+
+| Symptom | Cause |
+|---|---|
+| `Could not connect to server` | TCP/IP disabled, or the service wasn't restarted after enabling it |
+| `Login failed for user 'sa'` | Mixed Mode auth not enabled, or the `sa` login is disabled |
+| `self-signed certificate` | `trustServerCertificate=true` missing from `DATABASE_URL` |
+| Connects, but no tables | You're on the old Docker container still holding port 1433 |
 
 ## Scripts
 
@@ -84,7 +111,6 @@ Run from the repository root.
 | `npm run dev:server` / `npm run dev:client` | one at a time |
 | `npm run build` | production build of both |
 | `npm run test` | test suites |
-| `npm run db:up` / `db:down` / `db:logs` | the SQL Server container |
 | `npm run db:migrate` / `db:seed` / `db:studio` | Prisma |
 
 ## Conventions that bite newcomers

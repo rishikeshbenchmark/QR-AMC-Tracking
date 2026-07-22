@@ -42,23 +42,22 @@ so wrap views in `EXEC('CREATE VIEW …')`, as the init migration does.
 - **Never regenerate a migration that has been hand-edited.** You will silently drop every
   CHECK constraint and filtered index in it. There is no error; the schema just quietly stops
   enforcing its rules.
-- **Never `migrate reset` against anything but your own local container.**
+- **Never `migrate reset` against anything but your own local instance.**
 - In production it is `prisma migrate deploy` only — forward-only, never `dev`.
 
 ## Verifying a migration did what you think
 
-```bash
-docker exec qramc-mssql /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "$MSSQL_SA_PASSWORD" \
-  -C -d qramc -Q "SELECT COUNT(*) FROM sys.check_constraints; \
-                  SELECT COUNT(*) FROM sys.indexes WHERE has_filter = 1;"
+Run this in SSMS against the `qramc` database, or with `sqlcmd`:
+
+```sql
+SELECT COUNT(*) AS check_constraints FROM sys.check_constraints;
+SELECT COUNT(*) AS filtered_indexes  FROM sys.indexes WHERE has_filter = 1;
+SELECT COUNT(*) AS coverage_view     FROM sys.views WHERE name = 'vw_asset_coverage';
 ```
 
-After `20260722100830_init` the correct answers are **11 check constraints** and
-**14 filtered indexes** (11 unique + 3 report), plus one view. If a later migration drops
-those numbers, it was regenerated over a hand-edit.
-
-On Git Bash, prefix the command with `MSYS_NO_PATHCONV=1` or the container path gets rewritten
-into a Windows path and the exec fails.
+After `20260722100830_init` the correct answers are **11 check constraints**, **14 filtered
+indexes** (11 unique + 3 report) and **1 view**. If a later migration drops those numbers, it was
+regenerated over a hand-edit.
 
 ## Row-level security
 

@@ -30,7 +30,7 @@ That gap is unfunded exposure, and today nobody can see it.
 |---|---|
 | Backend | Node.js + **TypeScript**, Express |
 | ORM | **Prisma** (`provider = "sqlserver"`) |
-| Database | **SQL Server 2022** (Docker in dev, company server in prod) |
+| Database | **SQL Server 2022** (Developer Edition locally, company server in prod) |
 | Auth | JWT (header bearer) + bcrypt |
 | Validation | **zod** — same schemas shape front and back |
 | Frontend | React + **Vite** + TypeScript, PWA |
@@ -524,7 +524,7 @@ helpers. These are fast, need no database, and carry the business rules.
 
 **Integration tests.** The money paths: login + RBAC matrix, Step-1 asset+purchase transaction
 (including rollback on failure), sale creation and its guards, the public scan DTO's exact field set.
-Run against a real SQL Server (Docker), not a mock.
+Run against a real SQL Server (local Developer Edition), not a mock.
 
 **Edge cases** to cover explicitly: inclusive vs exclusive warranty end dates; same-day sale and
 installation; customer warranty starting before the sale date (legal — HOD Q6.3); supplier warranty
