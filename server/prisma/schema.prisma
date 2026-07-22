@@ -1,0 +1,482 @@
+// QR-AMC Tracking System — Prisma schema.
+//
+// DERIVED FROM `db/schema.sql`, never the reverse. If the two disagree, the SQL is right.
+//
+// Prisma on SQL Server cannot express three things this schema depends on. After
+// `prisma migrate dev` generates a migration, the SQL is HAND-EDITED to add them, and the
+// migration is never regenerated over. `prisma/MIGRATIONS.md` carries the exact statements.
+//
+//   1. CHECK constraints  — every ck_* in db/schema.sql (status vocabularies, date ordering,
+//      positive money, the Back-to-Back AMC supplier rule, the warranty-start floor).
+//   2. Filtered unique indexes — uniqueness must ignore soft-deleted rows, e.g.
+//      ux_users_email … WHERE is_deleted = 0, and ux_assets_company_serial, which additionally
+//      excludes DISCARDED so a resold serial can re-register under a new asset.
+//   3. Filtered non-unique indexes — the … WHERE is_deleted = 0 report indexes.
+//
+// Every relation is explicitly NoAction. Deletion is soft, so cascades are never wanted, and
+// SQL Server rejects the multiple cascade paths that this many FKs to `companies` would create.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlserver"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================================
+// 1. TENANCY & IDENTITY
+// ============================================================================
+
+model Company {
+  id        String    @id @default(dbgenerated("NEWSEQUENTIALID()")) @db.UniqueIdentifier
+  name      String    @db.NVarChar(255)
+  subdomain String    @db.NVarChar(100)
+  status    String    @default("ACTIVE") @db.VarChar(20)
+  createdAt DateTime  @default(dbgenerated("SYSUTCDATETIME()")) @map("created_at") @db.DateTime2
+  deletedAt DateTime? @map("deleted_at") @db.DateTime2
+
+  roles             Role[]
+  users             User[]
+  productCategories ProductCategory[]
+  productMakes      ProductMake[]
+  productModels     ProductModel[]
+  suppliers         Supplier[]
+  amcSuppliers      AmcSupplier[]
+  customers         Customer[]
+  amcTypes          AmcType[]
+  assets            Asset[]
+  assetStatusEvents AssetStatusHistory[]
+  purchases         Purchase[]
+  sales             Sale[]
+  amcContracts      AmcContract[]
+  alertSettings     AlertSetting[]
+  alertsSent        AlertSent[]
+
+  // ux_companies_subdomain is filtered (WHERE deleted_at IS NULL) — added by hand.
+  @@map("companies")
+}
+
+model Role {
+  id        String  @id @default(dbgenerated("NEWSEQUENTIALID()")) @db.UniqueIdentifier
+  companyId String  @map("company_id") @db.UniqueIdentifier
+  name      String  @db.NVarChar(100)
+  isSystem  Boolean @default(false) @map("is_system")
+
+  company     Company          @relation(fields: [companyId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  permissions RolePermission[]
+  users       User[]
+
+  @@unique([companyId, name], map: "ux_roles_company_name")
+  @@map("roles")
+}
+
+/// Global catalogue of permission codes — deliberately not tenant-scoped.
+model Permission {
+  id          String  @id @default(dbgenerated("NEWSEQUENTIALID()")) @db.UniqueIdentifier
+  code        String  @unique @db.VarChar(100)
+  description String? @db.NVarChar(255)
+
+  roles RolePermission[]
+
+  @@map("permissions")
+}
+
+model RolePermission {
+  roleId       String @map("role_id") @db.UniqueIdentifier
+  permissionId String @map("permission_id") @db.UniqueIdentifier
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@id([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+model User {
+  id           String    @id @default(dbgenerated("NEWSEQUENTIALID()")) @db.UniqueIdentifier
+  companyId    String    @map("company_id") @db.UniqueIdentifier
+  roleId       String    @map("role_id") @db.UniqueIdentifier
+  name         String    @db.NVarChar(255)
+  email        String    @db.NVarChar(255)
+  /// bcrypt hash. Never selected into a DTO, never logged.
+  passwordHash String    @map("password_hash") @db.VarChar(255)
+  isActive     Boolean   @default(true) @map("is_active")
+  createdBy    String?   @map("created_by") @db.UniqueIdentifier
+  createdAt    DateTime  @default(dbgenerated("SYSUTCDATETIME()")) @map("created_at") @db.DateTime2
+  updatedBy    String?   @map("updated_by") @db.UniqueIdentifier
+  updatedAt    DateTime? @map("updated_at") @db.DateTime2
+  isDeleted    Boolean   @default(false) @map("is_deleted")
+  deletedAt    DateTime? @map("deleted_at") @db.DateTime2
+  deletedBy    String?   @map("deleted_by") @db.UniqueIdentifier
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  role    Role    @relation(fields: [roleId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  // Email is globally unique but filtered (WHERE is_deleted = 0) so a soft-deleted
+  // user's address can be reused — added by hand.
+  @@map("users")
+}
+
+/// Insert-only. No FK to users on purpose: the audit trail must survive user deletion.
+model AuditLog {
+  id         String   @id @default(dbgenerated("NEWSEQUENTIALID()")) @db.UniqueIdentifier
+  companyId  String   @map("company_id") @db.UniqueIdentifier
+  entityType String   @map("entity_type") @db.VarChar(100)
+  entityId   String   @map("entity_id") @db.UniqueIdentifier
+  action     String   @db.VarChar(30)
+  fieldName  String?  @map("field_name") @db.VarChar(100)
+  oldValue   String?  @map("old_value") @db.NVarChar(Max)
+  newValue   String?  @map("new_value") @db.NVarChar(Max)
+  changedBy  String?  @map("changed_by") @db.UniqueIdentifier
+  changedAt  DateTime @default(dbgenerated("SYSUTCDATETIME()")) @map("changed_at") @db.DateTime2
+
+  @@index([companyId, entityType, entityId], map: "idx_audit_logs_entity")
+  @@map("audit_logs")
+}
+
+// ============================================================================
+// 2. MASTERS — seven near-identical CRUD resources. Build one shape, reuse it.
+//    Every ux_*_company_name is filtered (WHERE is_deleted = 0) and added by hand.
+// ============================================================================
+
+model ProductCategory {
+  id        String    @id @default(dbgenerated("NEWSEQUENTIALID()")) @db.UniqueIdentifier
+  companyId String    @map("company_id") @db.UniqueIdentifier
+  name      String    @db.NVarChar(150)
+  createdBy String?   @map("created_by") @db.UniqueIdentifier
+  createdAt DateTime  @default(dbgenerated("SYSUTCDATETIME()")) @map("created_at") @db.DateTime2
+  updatedBy String?   @map("updated_by") @db.UniqueIdentifier
+  updatedAt DateTime? @map("updated_at") @db.DateTime2
+  isDeleted Boolean   @default(false) @map("is_deleted")
+  deletedAt DateTime? @map("deleted_at") @db.DateTime2
+  deletedBy String?   @map("deleted_by") @db.UniqueIdentifier
+
+  company Company       @relation(fields: [companyId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  makes   ProductMake[]
+  assets  Asset[]
+
+  @@map("product_categories")
+}
+
+model ProductMake {
+  id         String    @id @default(dbgenerated("NEWSEQUENTIALID()")) @db.UniqueIdentifier
+  companyId  String    @map("company_id") @db.UniqueIdentifier
+  /// Mandatory (resolved scope question) — a make always belongs to a category.
+  categoryId String    @map("category_id") @db.UniqueIdentifier
+  name       String    @db.NVarChar(150)
+  createdBy  String?   @map("created_by") @db.UniqueIdentifier
+  createdAt  DateTime  @default(dbgenerated("SYSUTCDATETIME()")) @map("created_at") @db.DateTime2
+  updatedBy  String?   @map("updated_by") @db.UniqueIdentifier
+  updatedAt  DateTime? @map("updated_at") @db.DateTime2
+  isDeleted  Boolean   @default(false) @map("is_deleted")
+  deletedAt  DateTime? @map("deleted_at") @db.DateTime2
+  deletedBy  String?   @map("deleted_by") @db.UniqueIdentifier
+
+  company  Company         @relation(fields: [companyId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  category ProductCategory @relation(fields: [categoryId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  models   ProductModel[]
+  assets   Asset[]
+
+  @@map("product_makes")
+}
+
+model ProductModel {
+  id        String    @id @default(dbgenerated("NEWSEQUENTIALID()")) @db.UniqueIdentifier
+  companyId String    @map("company_id") @db.UniqueIdentifier
+  makeId    String    @map("make_id") @db.UniqueIdentifier
+  /// e.g. "Latitude 5550", which belongs to the make "Dell".
+  name      String    @db.NVarChar(150)
+  createdBy String?   @map("created_by") @db.UniqueIdentifier
+  createdAt DateTime  @default(dbgenerated("SYSUTCDATETIME()")) @map("created_at") @db.DateTime2
+  updatedBy String?   @map("updated_by") @db.UniqueIdentifier
+  updatedAt DateTime? @map("updated_at") @db.DateTime2
+  isDeleted Boolean   @default(false) @map("is_deleted")
+  deletedAt DateTime? @map("deleted_at") @db.DateTime2
+  deletedBy String?   @map("deleted_by") @db.UniqueIdentifier
+
+  company Company     @relation(fields: [companyId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  make    ProductMake @relation(fields: [makeId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  assets  Asset[]
+
+  @@map("product_models")
+}
+
+model Supplier {
+  id        String    @id @default(dbgenerated("NEWSEQUENTIALID()")) @db.UniqueIdentifier
+  companyId String    @map("company_id") @db.UniqueIdentifier
+  name      String    @db.NVarChar(255)
+  email     String?   @db.NVarChar(255)
+  createdBy String?   @map("created_by") @db.UniqueIdentifier
+  createdAt DateTime  @default(dbgenerated("SYSUTCDATETIME()")) @map("created_at") @db.DateTime2
+  updatedBy String?   @map("updated_by") @db.UniqueIdentifier
+  updatedAt DateTime? @map("updated_at") @db.DateTime2
+  isDeleted Boolean   @default(false) @map("is_deleted")
+  deletedAt DateTime? @map("deleted_at") @db.DateTime2
+  deletedBy String?   @map("deleted_by") @db.UniqueIdentifier
+
+  company   Company    @relation(fields: [companyId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  purchases Purchase[]
+
+  @@map("suppliers")
+}
+
+/// Third parties who fulfil Back-to-Back AMC support — may differ from the seller.
+model AmcSupplier {
+  id        String    @id @default(dbgenerated("NEWSEQUENTIALID()")) @db.UniqueIdentifier
+  companyId String    @map("company_id") @db.UniqueIdentifier
+  name      String    @db.NVarChar(255)
+  createdBy String?   @map("created_by") @db.UniqueIdentifier
+  createdAt DateTime  @default(dbgenerated("SYSUTCDATETIME()")) @map("created_at") @db.DateTime2
+  updatedBy String?   @map("updated_by") @db.UniqueIdentifier
+  updatedAt DateTime? @map("updated_at") @db.DateTime2
+  isDeleted Boolean   @default(false) @map("is_deleted")
+  deletedAt DateTime? @map("deleted_at") @db.DateTime2
+  deletedBy String?   @map("deleted_by") @db.UniqueIdentifier
+
+  company   Company    @relation(fields: [companyId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  purchases Purchase[]
+
+  @@map("amc_suppliers")
+}
+
+model Customer {
+  id        String    @id @default(dbgenerated("NEWSEQUENTIALID()")) @db.UniqueIdentifier
+  companyId String    @map("company_id") @db.UniqueIdentifier
+  name      String    @db.NVarChar(255)
+  email     String?   @db.NVarChar(255)
+  createdBy String?   @map("created_by") @db.UniqueIdentifier
+  createdAt DateTime  @default(dbgenerated("SYSUTCDATETIME()")) @map("created_at") @db.DateTime2
+  updatedBy String?   @map("updated_by") @db.UniqueIdentifier
+  updatedAt DateTime? @map("updated_at") @db.DateTime2
+  isDeleted Boolean   @default(false) @map("is_deleted")
+  deletedAt DateTime? @map("deleted_at") @db.DateTime2
+  deletedBy String?   @map("deleted_by") @db.UniqueIdentifier
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  sales   Sale[]
+
+  @@map("customers")
+}
+
+/// Seeded (Comprehensive, Non-Comprehensive). Not created on the fly.
+model AmcType {
+  id        String    @id @default(dbgenerated("NEWSEQUENTIALID()")) @db.UniqueIdentifier
+  companyId String    @map("company_id") @db.UniqueIdentifier
+  name      String    @db.NVarChar(100)
+  createdBy String?   @map("created_by") @db.UniqueIdentifier
+  createdAt DateTime  @default(dbgenerated("SYSUTCDATETIME()")) @map("created_at") @db.DateTime2
+  updatedBy String?   @map("updated_by") @db.UniqueIdentifier
+  updatedAt DateTime? @map("updated_at") @db.DateTime2
+  isDeleted Boolean   @default(false) @map("is_deleted")
+  deletedAt DateTime? @map("deleted_at") @db.DateTime2
+  deletedBy String?   @map("deleted_by") @db.UniqueIdentifier
+
+  company      Company       @relation(fields: [companyId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  amcContracts AmcContract[]
+
+  @@map("amc_types")
+}
+
+// ============================================================================
+// 3. ASSET DOMAIN
+// ============================================================================
+
+model Asset {
+  /// No database default: the service layer supplies a UUID v4, because this id is the
+  /// QR payload and must exist before insert so the audit row can reference it.
+  id           String @id @db.UniqueIdentifier
+  companyId    String @map("company_id") @db.UniqueIdentifier
+  categoryId   String @map("category_id") @db.UniqueIdentifier
+  makeId       String @map("make_id") @db.UniqueIdentifier
+  modelId      String @map("model_id") @db.UniqueIdentifier
+  /// Trimmed and uppercased at the validation boundary, not in the repository.
+  serialNumber String @map("serial_number") @db.NVarChar(100)
+  /// ONE status, hand-picked from a dropdown by Admin/Backoffice (ADR-0003).
+  /// The system never writes this field. Legal moves live in modules/assets/lifecycle.ts;
+  /// the vocabulary is enforced by ck_assets_status, added to the migration by hand.
+  status       String @default("CREATED") @db.VarChar(20)
+
+  createdBy String?   @map("created_by") @db.UniqueIdentifier
+  createdAt DateTime  @default(dbgenerated("SYSUTCDATETIME()")) @map("created_at") @db.DateTime2
+  updatedBy String?   @map("updated_by") @db.UniqueIdentifier
+  updatedAt DateTime? @map("updated_at") @db.DateTime2
+  isDeleted Boolean   @default(false) @map("is_deleted")
+  deletedAt DateTime? @map("deleted_at") @db.DateTime2
+  deletedBy String?   @map("deleted_by") @db.UniqueIdentifier
+
+  company       Company              @relation(fields: [companyId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  category      ProductCategory      @relation(fields: [categoryId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  make          ProductMake          @relation(fields: [makeId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  model         ProductModel         @relation(fields: [modelId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  purchase      Purchase?
+  sale          Sale?
+  amcContracts  AmcContract[]
+  statusHistory AssetStatusHistory[]
+
+  // ux_assets_company_serial is filtered (is_deleted = 0 AND status <> 'DISCARDED')
+  // so a resold serial can re-register under a new asset — added by hand.
+  @@index([companyId, status], map: "idx_assets_status")
+  @@map("assets")
+}
+
+/// Insert-only. The one-status column cannot remember that QC ever passed, so the
+/// dispatch gate reads this table for a prior QC_PASSED row.
+model AssetStatusHistory {
+  id         String   @id @default(dbgenerated("NEWSEQUENTIALID()")) @db.UniqueIdentifier
+  companyId  String   @map("company_id") @db.UniqueIdentifier
+  assetId    String   @map("asset_id") @db.UniqueIdentifier
+  /// NULL on the initial CREATED row.
+  fromStatus String?  @map("from_status") @db.VarChar(20)
+  toStatus   String   @map("to_status") @db.VarChar(20)
+  /// QC failure reason, discard reason, and so on.
+  remarks    String?  @db.NVarChar(500)
+  changedBy  String?  @map("changed_by") @db.UniqueIdentifier
+  changedAt  DateTime @default(dbgenerated("SYSUTCDATETIME()")) @map("changed_at") @db.DateTime2
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  asset   Asset   @relation(fields: [assetId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([assetId, changedAt], map: "idx_asset_status_history_asset")
+  @@map("asset_status_history")
+}
+
+/// 1:1 with an asset. Created at Purchase Step 1 (supplier only); Step 2 fills the rest.
+model Purchase {
+  id                    String    @id @default(dbgenerated("NEWSEQUENTIALID()")) @db.UniqueIdentifier
+  companyId             String    @map("company_id") @db.UniqueIdentifier
+  assetId               String    @unique @map("asset_id") @db.UniqueIdentifier
+  supplierId            String    @map("supplier_id") @db.UniqueIdentifier
+  poNumber              String?   @map("po_number") @db.NVarChar(50)
+  supplierInvoiceNo     String?   @map("supplier_invoice_no") @db.NVarChar(50)
+  purchaseDate          DateTime? @map("purchase_date") @db.Date
+  supplierWarrantyStart DateTime? @map("supplier_warranty_start") @db.Date
+  supplierWarrantyEnd   DateTime? @map("supplier_warranty_end") @db.Date
+  /// Visible to Backoffice and Admin only. Masked in the service/DTO layer, never logged.
+  costPrice             Decimal?  @map("cost_price") @db.Decimal(12, 2)
+  /// INHOUSE | BACK_TO_BACK. Nullable — populated at AMC time.
+  amcSupport            String?   @map("amc_support") @db.VarChar(15)
+  amcSupplierId         String?   @map("amc_supplier_id") @db.UniqueIdentifier
+
+  createdBy String?   @map("created_by") @db.UniqueIdentifier
+  createdAt DateTime  @default(dbgenerated("SYSUTCDATETIME()")) @map("created_at") @db.DateTime2
+  updatedBy String?   @map("updated_by") @db.UniqueIdentifier
+  updatedAt DateTime? @map("updated_at") @db.DateTime2
+  isDeleted Boolean   @default(false) @map("is_deleted")
+  deletedAt DateTime? @map("deleted_at") @db.DateTime2
+  deletedBy String?   @map("deleted_by") @db.UniqueIdentifier
+
+  company     Company      @relation(fields: [companyId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  asset       Asset        @relation(fields: [assetId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  supplier    Supplier     @relation(fields: [supplierId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  amcSupplier AmcSupplier? @relation(fields: [amcSupplierId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  // idx_purchases_supplier_warranty is filtered (WHERE is_deleted = 0) — added by hand.
+  @@map("purchases")
+}
+
+/// 1:1 with an asset. Resale mints a new asset and a new QR, never a second sale row.
+model Sale {
+  id                    String    @id @default(dbgenerated("NEWSEQUENTIALID()")) @db.UniqueIdentifier
+  companyId             String    @map("company_id") @db.UniqueIdentifier
+  assetId               String    @unique @map("asset_id") @db.UniqueIdentifier
+  customerId            String    @map("customer_id") @db.UniqueIdentifier
+  /// Nullable until the sale is invoiced.
+  salesInvoiceNo        String?   @map("sales_invoice_no") @db.NVarChar(50)
+  salesDate             DateTime? @map("sales_date") @db.Date
+  installationDate      DateTime? @map("installation_date") @db.Date
+  customerWarrantyStart DateTime? @map("customer_warranty_start") @db.Date
+  customerWarrantyEnd   DateTime? @map("customer_warranty_end") @db.Date
+  serviceSupport        Boolean   @default(false) @map("service_support")
+  /// Required by the service layer whenever serviceSupport is true.
+  serviceSupportStart   DateTime? @map("service_support_start") @db.Date
+  serviceSupportEnd     DateTime? @map("service_support_end") @db.Date
+
+  createdBy String?   @map("created_by") @db.UniqueIdentifier
+  createdAt DateTime  @default(dbgenerated("SYSUTCDATETIME()")) @map("created_at") @db.DateTime2
+  updatedBy String?   @map("updated_by") @db.UniqueIdentifier
+  updatedAt DateTime? @map("updated_at") @db.DateTime2
+  isDeleted Boolean   @default(false) @map("is_deleted")
+  deletedAt DateTime? @map("deleted_at") @db.DateTime2
+  deletedBy String?   @map("deleted_by") @db.UniqueIdentifier
+
+  company      Company       @relation(fields: [companyId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  asset        Asset         @relation(fields: [assetId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  customer     Customer      @relation(fields: [customerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  amcContracts AmcContract[]
+
+  // idx_sales_customer_warranty is filtered (WHERE is_deleted = 0) — added by hand.
+  @@map("sales")
+}
+
+/// 1:N with an asset — renewals are new rows. Overlapping periods are blocked in the
+/// service layer, because SQL Server has no EXCLUDE constraint.
+model AmcContract {
+  id        String   @id @default(dbgenerated("NEWSEQUENTIALID()")) @db.UniqueIdentifier
+  companyId String   @map("company_id") @db.UniqueIdentifier
+  assetId   String   @map("asset_id") @db.UniqueIdentifier
+  saleId    String   @map("sale_id") @db.UniqueIdentifier
+  amcTypeId String   @map("amc_type_id") @db.UniqueIdentifier
+  amcStart  DateTime @map("amc_start") @db.Date
+  amcEnd    DateTime @map("amc_end") @db.Date
+  isCurrent Boolean  @default(true) @map("is_current")
+  /// ACTIVE | EXPIRED | CANCELLED.
+  status    String   @default("ACTIVE") @db.VarChar(20)
+
+  createdBy String?   @map("created_by") @db.UniqueIdentifier
+  createdAt DateTime  @default(dbgenerated("SYSUTCDATETIME()")) @map("created_at") @db.DateTime2
+  updatedBy String?   @map("updated_by") @db.UniqueIdentifier
+  updatedAt DateTime? @map("updated_at") @db.DateTime2
+  isDeleted Boolean   @default(false) @map("is_deleted")
+  deletedAt DateTime? @map("deleted_at") @db.DateTime2
+  deletedBy String?   @map("deleted_by") @db.UniqueIdentifier
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  asset   Asset   @relation(fields: [assetId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  sale    Sale    @relation(fields: [saleId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  amcType AmcType @relation(fields: [amcTypeId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  // ux_amc_current_per_asset and idx_amc_contracts_end are both filtered — added by hand.
+  @@map("amc_contracts")
+}
+
+// ============================================================================
+// 4. ALERTS — V2. The tables exist so the schema is complete; nothing in the MVP
+//    reads or writes them. No scheduler, no SMTP, no recipients configured.
+// ============================================================================
+
+model AlertSetting {
+  id            String    @id @default(dbgenerated("NEWSEQUENTIALID()")) @db.UniqueIdentifier
+  companyId     String    @map("company_id") @db.UniqueIdentifier
+  alertType     String    @map("alert_type") @db.VarChar(30)
+  /// CSV of lead days.
+  thresholdDays String    @default("90,60,30,7") @map("threshold_days") @db.VarChar(50)
+  recipients    String?   @db.NVarChar(Max)
+  isEnabled     Boolean   @default(true) @map("is_enabled")
+  updatedBy     String?   @map("updated_by") @db.UniqueIdentifier
+  updatedAt     DateTime? @map("updated_at") @db.DateTime2
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([companyId, alertType], map: "ux_alert_settings")
+  @@map("alert_settings")
+}
+
+/// Idempotency ledger so the nightly job never emails the same threshold twice.
+model AlertSent {
+  id            String   @id @default(dbgenerated("NEWSEQUENTIALID()")) @db.UniqueIdentifier
+  companyId     String   @map("company_id") @db.UniqueIdentifier
+  alertType     String   @map("alert_type") @db.VarChar(30)
+  entityType    String   @map("entity_type") @db.VarChar(30)
+  entityId      String   @map("entity_id") @db.UniqueIdentifier
+  thresholdDays Int      @map("threshold_days")
+  recipients    String?  @db.NVarChar(Max)
+  sentAt        DateTime @default(dbgenerated("SYSUTCDATETIME()")) @map("sent_at") @db.DateTime2
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([companyId, alertType, entityId, thresholdDays], map: "ux_alerts_sent_dedup")
+  @@index([companyId, entityType, entityId], map: "idx_alerts_sent_entity")
+  @@map("alerts_sent")
+}
