@@ -49,14 +49,24 @@ Prerequisites: **Node 20.11+**, **SQL Server 2022 Developer Edition**, **SSMS**,
 ### 1. Install SQL Server 2022 Developer Edition
 
 Free and full-featured — the same engine as production, so what works here works on the company
-server. Download it from Microsoft, choose **Basic** installation, and then get these three things
-right, because each one blocks the connection and none of them announces itself:
+server. Download it from
+[Microsoft](https://www.microsoft.com/en-us/sql-server/sql-server-downloads) (Developer edition).
 
-1. **Authentication: choose "Mixed Mode"**, not Windows-only. Set an `sa` password and write it
-   down. Windows-only auth is the default, and Prisma cannot use it.
-2. **Enable TCP/IP.** Open *SQL Server Configuration Manager* → *SQL Server Network Configuration*
-   → *Protocols for MSSQLSERVER* → set **TCP/IP** to *Enabled*. It ships disabled.
-3. **Restart the SQL Server service** after enabling TCP/IP. The change does nothing until you do.
+**Choose "Custom", not "Basic".** This matters: Basic installs with Windows-only authentication and
+never asks you about it, and Prisma cannot use Windows auth. Custom opens the Installation Center →
+*New SQL Server standalone installation* → walk the wizard, and at **Database Engine Configuration**:
+
+1. **Select "Mixed Mode"**, set an `sa` password, and write it down. This is the one screen that
+   matters; getting it wrong means reinstalling or fixing it afterwards through SSMS.
+2. Add your Windows user as an administrator when prompted (the wizard offers a button for it).
+
+After installing, verify **TCP/IP** is enabled: *SQL Server Configuration Manager* → *SQL Server
+Network Configuration* → *Protocols for MSSQLSERVER* → **TCP/IP** should be *Enabled*. If you had to
+change it, **restart the SQL Server service** — the change does nothing until you do.
+
+> Already installed with Basic by mistake? You don't have to reinstall. In SSMS: right-click the
+> server → *Properties* → *Security* → select **SQL Server and Windows Authentication mode**; then
+> under *Security → Logins*, enable the `sa` login and set its password. Restart the service.
 
 Then install **SQL Server Management Studio (SSMS)** and connect to `localhost` with the `sa`
 account to confirm it all works before touching the app.
