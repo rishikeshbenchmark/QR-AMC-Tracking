@@ -1,6 +1,7 @@
 import { app } from '@/app';
 import { env } from '@/config/env';
 import { logger } from '@/shared/logger';
+import { prisma } from '@/shared/prisma';
 
 const server = app.listen(env.PORT, () => {
   logger.info({ port: env.PORT, env: env.NODE_ENV }, `API listening on http://localhost:${env.PORT}`);
@@ -21,8 +22,10 @@ const shutdown = (signal: string): void => {
       logger.error({ err }, 'Error while closing the server');
       process.exit(1);
     }
-    logger.info('Shutdown complete');
-    process.exit(0);
+    void prisma.$disconnect().finally(() => {
+      logger.info('Shutdown complete');
+      process.exit(0);
+    });
   });
 };
 
