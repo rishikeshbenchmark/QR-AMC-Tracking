@@ -42,40 +42,27 @@ QR-AMC-Tracking-system/
 
 Feature modules appear as they are built — the tree above is the destination, not the current state.
 
-## First-time setup
+## The database
 
-Prerequisites: **Node 20.11+**, **SQL Server 2022 Developer Edition**, **SSMS**, **Git**.
+Development runs against **one shared SQL Server database on the company server** — not a database
+on your laptop. Everyone connects to the same instance, so there is nothing to install: the schema
+is already there, created once by the lead.
 
-### 1. Install SQL Server 2022 Developer Edition
+This has one hard rule that protects everyone:
 
-Free and full-featured — the same engine as production, so what works here works on the company
-server. Download it from
-[Microsoft](https://www.microsoft.com/en-us/sql-server/sql-server-downloads) (Developer edition).
+> ### Only the lead runs `db:migrate` or `db:seed`. Ever.
+>
+> `prisma migrate dev` is designed for a database one person owns. Against a shared database it can
+> detect "drift" and offer to **reset it — dropping every table and everyone's data**. On your own
+> machine that is a yawn; on the shared server it wipes the whole team's work. So interns run
+> `npm run dev` and nothing else database-related. If your task needs a schema change, **ask the
+> lead** — see `server/prisma/MIGRATIONS.md`.
 
-**Choose "Custom", not "Basic".** This matters: Basic installs with Windows-only authentication and
-never asks you about it, and Prisma cannot use Windows auth. Custom opens the Installation Center →
-*New SQL Server standalone installation* → walk the wizard, and at **Database Engine Configuration**:
+### Setup for the interns (the common case)
 
-1. **Select "Mixed Mode"**, set an `sa` password, and write it down. This is the one screen that
-   matters; getting it wrong means reinstalling or fixing it afterwards through SSMS.
-2. Add your Windows user as an administrator when prompted (the wizard offers a button for it).
-
-After installing, verify **TCP/IP** is enabled: *SQL Server Configuration Manager* → *SQL Server
-Network Configuration* → *Protocols for MSSQLSERVER* → **TCP/IP** should be *Enabled*. If you had to
-change it, **restart the SQL Server service** — the change does nothing until you do.
-
-> Already installed with Basic by mistake? You don't have to reinstall. In SSMS: right-click the
-> server → *Properties* → *Security* → select **SQL Server and Windows Authentication mode**; then
-> under *Security → Logins*, enable the `sa` login and set its password. Restart the service.
-
-Then install **SQL Server Management Studio (SSMS)** and connect to `localhost` with the `sa`
-account to confirm it all works before touching the app.
-
-> **If you previously ran the Docker container:** stop it first — `docker rm -f qramc-mssql` — or it
-> keeps port 1433 and you will connect to the old container without realising it. Symptoms are
-> confusing: migrations appear to work but SSMS shows no tables.
-
-### 2. Set up the project
+You need the connection details from the lead: the **server host**, the **database name**, and a
+**SQL login** (a username and password — not your Windows login; Prisma authenticates with
+credentials).
 
 ```bash
 git clone https://github.com/rishikeshbenchmark/QR-AMC-Tracking.git
@@ -88,28 +75,49 @@ cp client/.env.example client/.env
 
 Edit `server/.env`:
 
-1. Put your `sa` password into `DATABASE_URL`.
-2. Generate a real `JWT_SECRET`:
-   `node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"`
+1. Set `DATABASE_URL` to the shared server (the lead gives you the exact line):
+   ```
+   DATABASE_URL="sqlserver://SERVER_HOST:1433;database=qramc_dev;user=YOUR_LOGIN;password=YOUR_PASSWORD;encrypt=true;trustServerCertificate=true"
+   ```
+2. Set `JWT_SECRET` to the value the lead shares, so everyone issues compatible tokens:
+   the same secret must be used by every developer or your login will not work against a
+   teammate's running API.
 
 ```bash
-npm run db:migrate                   # creates the qramc database and applies migrations
-npm run db:seed                      # one company, roles, permissions, an admin user
-npm run dev                          # API on :4000, client on :5173
+npm run dev                          # API on :4000, client on :5173 — DO NOT run db:migrate
 ```
 
-Verify: `curl http://localhost:4000/api/v1/health` returns `{"data":{"status":"ok",…}}`.
+Verify: `curl http://localhost:4000/api/v1/health` returns `{"data":{"status":"ok",…}}`, then log
+in from the browser with the shared admin credentials.
+
+### Setup for the lead (once, when the shared database is empty)
+
+Install **SSMS**, connect to the server, and create an empty database `qramc_dev`. Then, from a
+clone with `server/.env` pointing at it:
+
+```bash
+npm run db:migrate                   # applies the schema to the shared database
+npm run db:seed                      # one company, roles, permissions, the admin user, sample masters
+```
+
+Re-running the seed is safe — it is written to be idempotent. Re-running `db:migrate` after the
+first time only applies *new* migrations; it does not touch existing data unless it reports drift,
+at which point **stop and investigate**, never accept a reset.
 
 ### If the connection fails
 
-Almost always one of the three install steps above. In order of likelihood:
-
 | Symptom | Cause |
 |---|---|
-| `Could not connect to server` | TCP/IP disabled, or the service wasn't restarted after enabling it |
-| `Login failed for user 'sa'` | Mixed Mode auth not enabled, or the `sa` login is disabled |
+| `Can't reach database server` | Wrong host, the server is firewalled from your network, or you're off the company VPN/LAN |
+| `Login failed for user …` | Wrong SQL login, or the server has SQL authentication disabled (needs Mixed Mode) |
 | `self-signed certificate` | `trustServerCertificate=true` missing from `DATABASE_URL` |
-| Connects, but no tables | You're on the old Docker container still holding port 1433 |
+| `Cannot open database "qramc_dev"` | The database hasn't been created yet — that's the lead's one-time step above |
+
+### Working offline
+
+If you need to work without the company network, you can run SQL Server locally instead —
+`scripts/install-sqlserver.ps1` sets it up (run it from an elevated PowerShell). This is a
+fallback, not the normal path; a local database is your own copy and will not have the team's data.
 
 ## Scripts
 

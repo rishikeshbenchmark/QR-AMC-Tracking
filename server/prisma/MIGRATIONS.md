@@ -16,9 +16,13 @@ So every migration is generated and then **hand-edited**, and the edits live bel
 
 ## Who may create a migration
 
-**Only the project lead.** Three people generating migrations against three local databases
-produces three divergent histories that cannot be merged. If your work needs a schema change,
-ask — do not run `migrate dev`.
+**Only the project lead.** Development runs against **one shared database on the company server**,
+and `prisma migrate dev` can offer to reset it — dropping every table and the whole team's data. If
+your work needs a schema change, ask — do not run `migrate dev`.
+
+To stop an accidental run, `db:migrate` and `db:seed` are gated behind `prisma/guard.ts`: they
+refuse to proceed unless `MIGRATE_OK=1` is set. The lead sets it deliberately; nobody sets it by
+reflex. It is a speed bump, not a lock — the discipline is what actually protects the database.
 
 ## The workflow
 
@@ -30,8 +34,8 @@ npm exec --workspace=server -- prisma migrate dev --name <change> --create-only
 # 3. Hand-edit server/prisma/migrations/<timestamp>_<change>/migration.sql:
 #    add the CHECK constraints / filtered indexes / views, ABOVE the final `COMMIT TRAN;`
 #    so they are part of the same transaction.
-# 4. Apply it:
-npm exec --workspace=server -- prisma migrate dev
+# 4. Apply it (the guard requires MIGRATE_OK=1):
+MIGRATE_OK=1 npm run db:migrate --workspace=server
 ```
 
 `CREATE VIEW` must be the first statement in its batch, and the migration runs as one batch —
