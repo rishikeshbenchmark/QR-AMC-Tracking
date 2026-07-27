@@ -55,3 +55,22 @@ export function getApiErrorMessage(error: unknown, fallback = 'Something went wr
   }
   return fallback;
 }
+
+/** The stable machine error code (e.g. CATEGORY_NAME_TAKEN), for status-specific handling. */
+export function getApiErrorCode(error: unknown): string | undefined {
+  if (error instanceof AxiosError) {
+    return (error.response?.data?.error as ApiErrorShape | undefined)?.code;
+  }
+  return undefined;
+}
+
+/**
+ * Server field errors (zod `details`), so a form can map them back onto the offending inputs
+ * (CLAUDE.md forms: server field errors mapped back onto inputs). Empty when the error carries none.
+ */
+export function getApiFieldErrors(error: unknown): Array<{ field: string; issue: string }> {
+  if (error instanceof AxiosError) {
+    return (error.response?.data?.error as ApiErrorShape | undefined)?.details ?? [];
+  }
+  return [];
+}
