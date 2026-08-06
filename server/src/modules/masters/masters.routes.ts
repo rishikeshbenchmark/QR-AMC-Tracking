@@ -4,6 +4,7 @@ import { authenticate } from '@/middlewares/auth.middleware';
 
 import { categoriesRouter } from './categories/categories.routes';
 import { suppliersRouter } from './suppliers/suppliers.routes';
+import { makesRouter } from './makes/makes.routes';
 
 /**
  * Aggregates the master resources under /masters. `authenticate` runs once here so each resource
@@ -16,3 +17,4 @@ mastersRouter.use(authenticate);
 
 mastersRouter.use('/categories', categoriesRouter);
 mastersRouter.use('/suppliers', suppliersRouter);
+mastersRouter.use('/makes', makesRouter);
