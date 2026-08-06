@@ -32,9 +32,7 @@ export interface CategoryList {
   categories: Category[];
   meta: { page: number; limit: number; total: number };
 }
-
 const BASE_PATH = '/masters/categories';
-
 export async function listCategories(params: ListCategoriesParams): Promise<CategoryList> {
   const res = await apiClient.get<ListEnvelope<Category>>(BASE_PATH, {
     // Drop an empty search so the server sees no param rather than an empty string.
