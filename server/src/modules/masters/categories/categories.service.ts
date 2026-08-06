@@ -6,7 +6,7 @@ import { prisma } from '@/shared/prisma';
 
 import * as categoriesRepository from './categories.repository';
 import type { CreateCategoryInput, ListCategoriesQuery, UpdateCategoryInput } from './categories.schemas';
-import type { CategoryDto } from './categories.types';
+import type { CategoryDto } from './customers.types';
 
 /** Audit entity_type for this master. Interns cloning this file change this one string. */
 const ENTITY_TYPE = 'product_category';
