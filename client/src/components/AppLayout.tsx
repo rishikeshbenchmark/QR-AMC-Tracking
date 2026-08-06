@@ -1,8 +1,8 @@
 import { AppShell, Burger, Button, Group, NavLink, Text } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import {
-  IconCategory,
   IconLayoutDashboard,
+  IconStack2,
   IconTruck,
 } from '@tabler/icons-react';
 import { Link, Outlet, useLocation } from 'react-router-dom';
@@ -13,7 +13,6 @@ interface NavItem {
   label: string;
   to: string;
   icon: typeof IconLayoutDashboard;
-  /** When set, the link only renders if the user holds this permission code. */
   permission?: string;
 }
 
@@ -21,9 +20,9 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'Dashboard', to: '/', icon: IconLayoutDashboard },
 
   {
-    label: 'Categories',
-    to: '/masters/categories',
-    icon: IconCategory,
+    label: 'Masters',
+    to: '/masters',
+    icon: IconStack2,
     permission: 'master.manage',
   },
 
@@ -34,7 +33,7 @@ const NAV_ITEMS: NavItem[] = [
     permission: 'master.manage',
   },
 ];
-/** Authenticated shell: header with the current user + logout, a nav sidebar, and the routed page. */
+
 export function AppLayout() {
   const { user, logout, can } = useAuth();
   const location = useLocation();
@@ -78,7 +77,9 @@ export function AppLayout() {
             active={
               item.to === '/'
                 ? location.pathname === '/'
-                : location.pathname.startsWith(item.to)
+                : item.to === '/masters'
+                  ? location.pathname === '/masters' || location.pathname.startsWith('/masters/categories') || location.pathname.startsWith('/masters/customers')
+                  : location.pathname.startsWith(item.to)
             }
             onClick={closeNav}
           />

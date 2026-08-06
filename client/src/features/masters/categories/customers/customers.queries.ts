@@ -5,52 +5,52 @@ import {
   useQueryClient,
 } from '@tanstack/react-query';
 
-import * as categoriesApi from './customers.api';
-import type { ListCategoriesParams } from './customers.api';
-import type { CategoryFormValues } from './customers.schemas';
+import * as customersApi from './customers.api';
+import type { ListCustomersParams } from './customers.api';
+import type { CustomerFormValues } from './customers.schemas';
 
-/** Query-key factory — every category cache entry hangs off this root so one call invalidates all. */
-export const categoryKeys = {
-  all: ['categories'] as const,
-  list: (params: ListCategoriesParams) => [...categoryKeys.all, 'list', params] as const,
+/** Query-key factory — every customer cache entry hangs off this root so one call invalidates all. */
+export const customerKeys = {
+  all: ['customers'] as const,
+  list: (params: ListCustomersParams) => [...customerKeys.all, 'list', params] as const,
 };
 
-export function useCategories(params: ListCategoriesParams) {
+export function useCustomers(params: ListCustomersParams) {
   return useQuery({
-    queryKey: categoryKeys.list(params),
-    queryFn: () => categoriesApi.listCategories(params),
+    queryKey: customerKeys.list(params),
+    queryFn: () => customersApi.listCustomers(params),
     // Keep the previous page visible while the next page/search/sort loads — no flash to empty.
     placeholderData: keepPreviousData,
   });
 }
 
-export function useCreateCategory() {
+export function useCreateCustomer() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (input: CategoryFormValues) => categoriesApi.createCategory(input),
+    mutationFn: (input: CustomerFormValues) => customersApi.createCustomer(input),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: categoryKeys.all });
+      void queryClient.invalidateQueries({ queryKey: customerKeys.all });
     },
   });
 }
 
-export function useUpdateCategory() {
+export function useUpdateCustomer() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, input }: { id: string; input: CategoryFormValues }) =>
-      categoriesApi.updateCategory(id, input),
+    mutationFn: ({ id, input }: { id: string; input: CustomerFormValues }) =>
+      customersApi.updateCustomer(id, input),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: categoryKeys.all });
+      void queryClient.invalidateQueries({ queryKey: customerKeys.all });
     },
   });
 }
 
-export function useDeleteCategory() {
+export function useDeleteCustomer() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) => categoriesApi.deleteCategory(id),
+    mutationFn: (id: string) => customersApi.deleteCustomer(id),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: categoryKeys.all });
+      void queryClient.invalidateQueries({ queryKey: customerKeys.all });
     },
   });
 }

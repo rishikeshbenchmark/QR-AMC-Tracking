@@ -1,21 +1,22 @@
 import { apiClient } from '@/api/client';
 
-import type { CategoryFormValues, CategorySortField } from './customers.schemas';
+import type { CustomerFormValues, CustomerSortField } from './customers.schemas';
 import type { SortOrder } from '@/components/DataTable';
 
-/** Mirrors the server's CategoryDto. Dates arrive as ISO strings over JSON. */
-export interface Category {
+/** Mirrors the server's CustomerDto. Dates arrive as ISO strings over JSON. */
+export interface Customer {
   id: string;
   name: string;
+  email: string | null;
   createdAt: string;
   updatedAt: string | null;
 }
 
-export interface ListCategoriesParams {
+export interface ListCustomersParams {
   page: number;
   limit: number;
   search?: string;
-  sort: CategorySortField;
+  sort: CustomerSortField;
   order: SortOrder;
 }
 
@@ -28,31 +29,31 @@ interface ItemEnvelope<T> {
   data: T;
 }
 
-export interface CategoryList {
-  categories: Category[];
+export interface CustomerList {
+  customers: Customer[];
   meta: { page: number; limit: number; total: number };
 }
 
-const BASE_PATH = '/masters/categories';
+const BASE_PATH = '/masters/customers';
 
-export async function listCategories(params: ListCategoriesParams): Promise<CategoryList> {
-  const res = await apiClient.get<ListEnvelope<Category>>(BASE_PATH, {
+export async function listCustomers(params: ListCustomersParams): Promise<CustomerList> {
+  const res = await apiClient.get<ListEnvelope<Customer>>(BASE_PATH, {
     // Drop an empty search so the server sees no param rather than an empty string.
     params: { ...params, search: params.search || undefined },
   });
-  return { categories: res.data.data, meta: res.data.meta };
+  return { customers: res.data.data, meta: res.data.meta };
 }
 
-export async function createCategory(input: CategoryFormValues): Promise<Category> {
-  const res = await apiClient.post<ItemEnvelope<Category>>(BASE_PATH, input);
+export async function createCustomer(input: CustomerFormValues): Promise<Customer> {
+  const res = await apiClient.post<ItemEnvelope<Customer>>(BASE_PATH, input);
   return res.data.data;
 }
 
-export async function updateCategory(id: string, input: CategoryFormValues): Promise<Category> {
-  const res = await apiClient.put<ItemEnvelope<Category>>(`${BASE_PATH}/${id}`, input);
+export async function updateCustomer(id: string, input: CustomerFormValues): Promise<Customer> {
+  const res = await apiClient.put<ItemEnvelope<Customer>>(`${BASE_PATH}/${id}`, input);
   return res.data.data;
 }
 
-export async function deleteCategory(id: string): Promise<void> {
+export async function deleteCustomer(id: string): Promise<void> {
   await apiClient.delete(`${BASE_PATH}/${id}`);
 }

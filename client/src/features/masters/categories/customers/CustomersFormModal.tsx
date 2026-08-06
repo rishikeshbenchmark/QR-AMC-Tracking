@@ -6,27 +6,27 @@ import { useForm } from 'react-hook-form';
 
 import { getApiErrorCode, getApiErrorMessage, getApiFieldErrors } from '@/api/client';
 
-import type { Category } from './customers.api';
-import { categoryFormSchema } from './customers.schemas';
-import type { CategoryFormValues } from './customers.schemas';
-import { useCreateCategory, useUpdateCategory } from './customers.queries';
+import type { Customer } from './customers.api';
+import { customerFormSchema } from './customers.schemas';
+import type { CustomerFormValues } from './customers.schemas';
+import { useCreateCustomer, useUpdateCustomer } from './customers.queries';
 
-interface CategoryFormModalProps {
+interface CustomersFormModalProps {
   opened: boolean;
-  /** null → create mode; a category → edit mode (name pre-filled). */
-  category: Category | null;
+  /** null → create mode; a customer → edit mode (name/email pre-filled). */
+  customer: Customer | null;
   onClose: () => void;
 }
 
 /** The form's field names, so server `details` can only be mapped onto inputs that exist. */
-const FORM_FIELDS = new Set<keyof CategoryFormValues>(['name']);
+const FORM_FIELDS = new Set<keyof CustomerFormValues>(['name', 'email']);
 
-export function CategoryFormModal({ opened, category, onClose }: CategoryFormModalProps) {
-  const isEdit = category !== null;
+export function CustomersFormModal({ opened, customer, onClose }: CustomersFormModalProps) {
+  const isEdit = customer !== null;
   const [formError, setFormError] = useState<string | null>(null);
 
-  const createCategory = useCreateCategory();
-  const updateCategory = useUpdateCategory();
+  const createCustomer = useCreateCustomer();
+  const updateCustomer = useUpdateCustomer();
 
   const {
     register,
@@ -34,35 +34,35 @@ export function CategoryFormModal({ opened, category, onClose }: CategoryFormMod
     reset,
     setError,
     formState: { errors, isSubmitting },
-  } = useForm<CategoryFormValues>({
-    resolver: zodResolver(categoryFormSchema),
-    defaultValues: { name: '' },
+  } = useForm<CustomerFormValues>({
+    resolver: zodResolver(customerFormSchema),
+    defaultValues: { name: '', email: '' },
   });
 
-  // Re-seed the form each time the modal opens, so edit shows the current name and create is blank.
+  // Re-seed the form each time the modal opens, so edit shows current values and create is blank.
   useEffect(() => {
     if (opened) {
-      reset({ name: category?.name ?? '' });
+      reset({ name: customer?.name ?? '', email: customer?.email ?? '' });
       setFormError(null);
     }
-  }, [opened, category, reset]);
+  }, [opened, customer, reset]);
 
   const applyServerErrors = (error: unknown): void => {
     const fieldErrors = getApiFieldErrors(error);
     let mappedAny = false;
     for (const { field, issue } of fieldErrors) {
-      if (FORM_FIELDS.has(field as keyof CategoryFormValues)) {
-        setError(field as keyof CategoryFormValues, { message: issue });
+      if (FORM_FIELDS.has(field as keyof CustomerFormValues)) {
+        setError(field as keyof CustomerFormValues, { message: issue });
         mappedAny = true;
       }
     }
     // A duplicate name comes back as a 409 with no field details — pin it to the name input.
-    if (!mappedAny && getApiErrorCode(error) === 'CATEGORY_NAME_TAKEN') {
+    if (!mappedAny && getApiErrorCode(error) === 'CUSTOMER_NAME_TAKEN') {
       setError('name', { message: getApiErrorMessage(error) });
       mappedAny = true;
     }
     if (!mappedAny) {
-      setFormError(getApiErrorMessage(error, 'Could not save the category. Please try again.'));
+      setFormError(getApiErrorMessage(error, 'Could not save the customer. Please try again.'));
     }
   };
 
@@ -70,11 +70,11 @@ export function CategoryFormModal({ opened, category, onClose }: CategoryFormMod
     setFormError(null);
     try {
       if (isEdit) {
-        await updateCategory.mutateAsync({ id: category.id, input: values });
-        notifications.show({ message: `Category “${values.name}” updated.`, color: 'green' });
+        await updateCustomer.mutateAsync({ id: customer.id, input: values });
+        notifications.show({ message: `Customer "${values.name}" updated.`, color: 'green' });
       } else {
-        await createCategory.mutateAsync(values);
-        notifications.show({ message: `Category “${values.name}” created.`, color: 'green' });
+        await createCustomer.mutateAsync(values);
+        notifications.show({ message: `Customer "${values.name}" created.`, color: 'green' });
       }
       onClose();
     } catch (error) {
@@ -86,7 +86,7 @@ export function CategoryFormModal({ opened, category, onClose }: CategoryFormMod
     <Modal
       opened={opened}
       onClose={onClose}
-      title={isEdit ? 'Edit category' : 'New category'}
+      title={isEdit ? 'Edit Customer' : 'Add Customer'}
       centered
     >
       <form onSubmit={onSubmit} noValidate>
@@ -98,17 +98,24 @@ export function CategoryFormModal({ opened, category, onClose }: CategoryFormMod
           )}
           <TextInput
             label="Name"
+            placeholder="Enter customer name"
             required
             autoFocus
             error={errors.name?.message}
             {...register('name')}
+          />
+          <TextInput
+            label="Email (Optional)"
+            placeholder="Enter email address"
+            error={errors.email?.message}
+            {...register('email')}
           />
           <Group justify="flex-end" gap="sm">
             <Button variant="default" onClick={onClose} disabled={isSubmitting}>
               Cancel
             </Button>
             <Button type="submit" loading={isSubmitting}>
-              {isEdit ? 'Save changes' : 'Create'}
+              Save
             </Button>
           </Group>
         </Stack>

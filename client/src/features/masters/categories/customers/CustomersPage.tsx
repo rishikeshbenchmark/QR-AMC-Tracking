@@ -22,31 +22,30 @@ import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { DataTable } from '@/components/DataTable';
 import type { DataTableColumn, SortOrder } from '@/components/DataTable';
 
-import type { Category } from './customers.api';
-import { CategoryFormModal } from './CategoryFormModal';
-import { useCategories, useDeleteCategory } from './customers.queries';
-import type { CategorySortField } from './customers.schemas';
+import type { Customer } from './customers.api';
+import { CustomersFormModal } from './CustomersFormModal';
+import { useCustomers, useDeleteCustomer } from './customers.queries';
+import type { CustomerSortField } from './customers.schemas';
 
 const PAGE_SIZE = 25;
 const SEARCH_DEBOUNCE_MS = 300;
 
-export function CategoriesPage() {
+export function CustomersPage() {
   const [searchInput, setSearchInput] = useState('');
   const [debouncedSearch] = useDebouncedValue(searchInput, SEARCH_DEBOUNCE_MS);
   const [page, setPage] = useState(1);
-  const [sort, setSort] = useState<CategorySortField>('name');
+  const [sort, setSort] = useState<CustomerSortField>('name');
   const [order, setOrder] = useState<SortOrder>('asc');
 
-  const [editing, setEditing] = useState<Category | null>(null);
+  const [editing, setEditing] = useState<Customer | null>(null);
   const [isFormOpen, setFormOpen] = useState(false);
-  const [pendingDelete, setPendingDelete] = useState<Category | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<Customer | null>(null);
 
-  // A new search or sort resets to page 1 — page 3 of the old result set is meaningless for the new one.
   useEffect(() => {
     setPage(1);
   }, [debouncedSearch, sort, order]);
 
-  const query = useCategories({
+  const query = useCustomers({
     page,
     limit: PAGE_SIZE,
     search: debouncedSearch.trim() || undefined,
@@ -54,39 +53,45 @@ export function CategoriesPage() {
     order,
   });
 
-  const deleteCategory = useDeleteCategory();
+  const deleteCustomer = useDeleteCustomer();
 
   const openCreate = () => {
     setEditing(null);
     setFormOpen(true);
   };
 
-  const openEdit = (category: Category) => {
-    setEditing(category);
+  const openEdit = (customer: Customer) => {
+    setEditing(customer);
     setFormOpen(true);
   };
 
   const handleSortChange = (field: string, nextOrder: SortOrder) => {
-    setSort(field as CategorySortField);
+    setSort(field as CustomerSortField);
     setOrder(nextOrder);
   };
 
   const confirmDelete = async () => {
     if (!pendingDelete) return;
     try {
-      await deleteCategory.mutateAsync(pendingDelete.id);
-      notifications.show({ message: `Category “${pendingDelete.name}” deleted.`, color: 'green' });
+      await deleteCustomer.mutateAsync(pendingDelete.id);
+      notifications.show({ message: `Customer "${pendingDelete.name}" deleted.`, color: 'green' });
       setPendingDelete(null);
     } catch (error) {
       notifications.show({
-        message: getApiErrorMessage(error, 'Could not delete the category.'),
+        message: getApiErrorMessage(error, 'Could not delete the customer.'),
         color: 'red',
       });
     }
   };
 
-  const columns: DataTableColumn<Category>[] = [
+  const columns: DataTableColumn<Customer>[] = [
     { key: 'name', header: 'Name', sortable: true, render: (row) => row.name },
+    {
+      key: 'email',
+      header: 'Email',
+      sortable: true,
+      render: (row) => row.email || '—',
+    },
     {
       key: 'createdAt',
       header: 'Created',
@@ -120,7 +125,7 @@ export function CategoriesPage() {
     },
   ];
 
-  const categories = query.data?.categories ?? [];
+  const customers = query.data?.customers ?? [];
   const total = query.data?.meta.total ?? 0;
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const hasSearch = debouncedSearch.trim().length > 0;
@@ -128,18 +133,18 @@ export function CategoriesPage() {
   return (
     <Stack maw={860}>
       <Group justify="space-between">
-        <Title order={3}>Categories</Title>
+        <Title order={3}>Customers</Title>
         <Button leftSection={<IconPlus size={16} />} onClick={openCreate}>
-          New category
+          Add Customer
         </Button>
       </Group>
 
       <TextInput
-        placeholder="Search categories"
+        placeholder="Search customers..."
         leftSection={<IconSearch size={16} />}
         value={searchInput}
         onChange={(event) => setSearchInput(event.currentTarget.value)}
-        aria-label="Search categories"
+        aria-label="Search customers"
         maw={320}
       />
 
@@ -152,17 +157,17 @@ export function CategoriesPage() {
       ) : query.isError ? (
         <Alert color="red" role="alert" variant="light">
           <Group justify="space-between">
-            <Text size="sm">{getApiErrorMessage(query.error, 'Could not load categories.')}</Text>
+            <Text size="sm">{getApiErrorMessage(query.error, 'Could not load customers.')}</Text>
             <Button size="xs" variant="light" onClick={() => query.refetch()}>
               Retry
             </Button>
           </Group>
         </Alert>
-      ) : categories.length === 0 ? (
+      ) : customers.length === 0 ? (
         <Center mih={160}>
           <Stack align="center" gap="xs">
             <Text c="dimmed">
-              {hasSearch ? 'No categories match your search.' : 'No categories yet.'}
+              {hasSearch ? 'No customers match your search.' : 'No customers yet.'}
             </Text>
             {!hasSearch && (
               <Button variant="light" leftSection={<IconPlus size={16} />} onClick={openCreate}>
@@ -175,7 +180,7 @@ export function CategoriesPage() {
         <Stack>
           <DataTable
             columns={columns}
-            rows={categories}
+            rows={customers}
             rowKey={(row) => row.id}
             isRefetching={query.isFetching}
             sort={sort}
@@ -184,24 +189,24 @@ export function CategoriesPage() {
           />
           <Group justify="space-between">
             <Text size="sm" c="dimmed">
-              {total} categor{total === 1 ? 'y' : 'ies'}
+              Showing {customers.length} of {total} customer{total === 1 ? '' : 's'}
             </Text>
             {totalPages > 1 && <Pagination value={page} onChange={setPage} total={totalPages} />}
           </Group>
         </Stack>
       )}
 
-      <CategoryFormModal
+      <CustomersFormModal
         opened={isFormOpen}
-        category={editing}
+        customer={editing}
         onClose={() => setFormOpen(false)}
       />
 
       <ConfirmDialog
         opened={pendingDelete !== null}
-        title="Delete category"
+        title="Delete customer"
         destructive
-        loading={deleteCategory.isPending}
+        loading={deleteCustomer.isPending}
         confirmLabel="Delete"
         onConfirm={confirmDelete}
         onClose={() => setPendingDelete(null)}
