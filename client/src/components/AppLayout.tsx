@@ -1,6 +1,10 @@
 import { AppShell, Burger, Button, Group, NavLink, Text } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
-import { IconCategory, IconLayoutDashboard } from '@tabler/icons-react';
+import {
+  IconCategory,
+  IconLayoutDashboard,
+  IconTruck,
+} from '@tabler/icons-react';
 import { Link, Outlet, useLocation } from 'react-router-dom';
 
 import { useAuth } from '@/auth/AuthContext';
@@ -15,9 +19,21 @@ interface NavItem {
 
 const NAV_ITEMS: NavItem[] = [
   { label: 'Dashboard', to: '/', icon: IconLayoutDashboard },
-  { label: 'Categories', to: '/masters/categories', icon: IconCategory, permission: 'master.manage' },
-];
 
+  {
+    label: 'Categories',
+    to: '/masters/categories',
+    icon: IconCategory,
+    permission: 'master.manage',
+  },
+
+  {
+    label: 'Suppliers',
+    to: '/masters/suppliers',
+    icon: IconTruck,
+    permission: 'master.manage',
+  },
+];
 /** Authenticated shell: header with the current user + logout, a nav sidebar, and the routed page. */
 export function AppLayout() {
   const { user, logout, can } = useAuth();

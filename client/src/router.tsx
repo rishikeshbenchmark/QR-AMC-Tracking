@@ -6,6 +6,7 @@ import { RequirePermission } from '@/auth/RequirePermission';
 import { AppLayout } from '@/components/AppLayout';
 import { LoginPage } from '@/features/auth/LoginPage';
 import { CategoriesPage } from '@/features/masters/categories/CategoriesPage';
+import { SuppliersPage } from '@/features/masters/categories/suppliers/SuppliersPage';
 import { DashboardPage } from '@/features/dashboard/DashboardPage';
 
 /** AuthProvider lives inside the router so it can use navigation (401 redirect, logout). */
@@ -30,9 +31,18 @@ export const router = createBrowserRouter([
             children: [
               { index: true, element: <DashboardPage /> },
               {
-                element: <RequirePermission permission="master.manage" />,
-                children: [{ path: 'masters/categories', element: <CategoriesPage /> }],
-              },
+  element: <RequirePermission permission="master.manage" />,
+  children: [
+    {
+      path: 'masters/categories',
+      element: <CategoriesPage />,
+    },
+    {
+      path: 'masters/suppliers',
+      element: <SuppliersPage />,
+    },
+  ],
+},
             ],
           },
         ],
