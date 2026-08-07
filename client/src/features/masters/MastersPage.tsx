@@ -5,7 +5,6 @@ const TABS = [
   { value: 'categories', label: 'Categories' },
   { value: 'customers', label: 'Customers' },
   { value: 'suppliers', label: 'Suppliers' },
-  { value: 'makes', label: 'Makes' },
 ];
 
 export function MastersPage() {
@@ -33,3 +32,4 @@ export function MastersPage() {
     </Stack>
   );
 }
+
