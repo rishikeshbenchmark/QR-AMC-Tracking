@@ -3,11 +3,11 @@ import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 
 const TABS = [
   { value: 'categories', label: 'Categories' },
-  { value: 'customers', label: 'Customers' },
-  { value: 'suppliers', label: 'Suppliers' },
-  { value: 'amc-suppliers', label: 'AMC Suppliers' },
   { value: 'makes', label: 'Makes' },
   { value: 'models', label: 'Models' },
+  { value: 'suppliers', label: 'Suppliers' },
+  { value: 'amc-suppliers', label: 'AMC Suppliers' },
+  { value: 'customers', label: 'Customers' },
 
 ];
 export function MastersPage() {
