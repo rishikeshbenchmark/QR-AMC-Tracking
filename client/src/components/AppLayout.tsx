@@ -3,7 +3,6 @@ import { useDisclosure } from '@mantine/hooks';
 import {
   IconLayoutDashboard,
   IconStack2,
-  IconTruck,
 } from '@tabler/icons-react';
 import { Link, Outlet, useLocation } from 'react-router-dom';
 
@@ -17,21 +16,17 @@ interface NavItem {
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { label: 'Dashboard', to: '/', icon: IconLayoutDashboard },
-
+  {
+    label: 'Dashboard',
+    to: '/',
+    icon: IconLayoutDashboard,
+  },
   {
     label: 'Masters',
-    to: '/masters',
+    to: '/masters/categories',
     icon: IconStack2,
     permission: 'master.manage',
   },
-
-  {
-    label: 'Suppliers',
-    to: '/masters/suppliers',
-    icon: IconTruck,
-    permission: 'master.manage',
-  },  
 ];
 
 export function AppLayout() {
@@ -39,7 +34,9 @@ export function AppLayout() {
   const location = useLocation();
   const [navOpened, { toggle: toggleNav, close: closeNav }] = useDisclosure();
 
-  const visibleItems = NAV_ITEMS.filter((item) => !item.permission || can(item.permission));
+  const visibleItems = NAV_ITEMS.filter(
+    (item) => !item.permission || can(item.permission),
+  );
 
   return (
     <AppShell
@@ -50,15 +47,22 @@ export function AppLayout() {
       <AppShell.Header>
         <Group h="100%" px="md" justify="space-between">
           <Group gap="sm">
-            <Burger opened={navOpened} onClick={toggleNav} hiddenFrom="sm" size="sm" />
+            <Burger
+              opened={navOpened}
+              onClick={toggleNav}
+              hiddenFrom="sm"
+              size="sm"
+            />
             <Text fw={700}>QR-AMC</Text>
           </Group>
+
           <Group gap="sm">
             {user && (
               <Text size="sm" c="dimmed">
                 {user.name} · {user.role}
               </Text>
             )}
+
             <Button variant="light" size="xs" onClick={logout}>
               Log out
             </Button>
@@ -77,12 +81,7 @@ export function AppLayout() {
             active={
               item.to === '/'
                 ? location.pathname === '/'
-                : item.to === '/masters'
-                  ? location.pathname === '/masters' ||
-                    location.pathname.startsWith('/masters/categories') ||
-                    location.pathname.startsWith('/masters/customers') ||
-                    location.pathname.startsWith('/masters/makes')
-                  : location.pathname.startsWith(item.to)
+                : location.pathname.startsWith('/masters')
             }
             onClick={closeNav}
           />

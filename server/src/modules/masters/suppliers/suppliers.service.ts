@@ -112,15 +112,17 @@ export async function updateSupplier(
     throw AppError.conflict('SUPPLIER_NAME_TAKEN', `A supplier named "${input.name}" already exists.`);
   }
 
-  const changes = diffFields(current, { ...current, name: input.name }, ['name']);
-  if (changes.length === 0) {
-    // Nothing actually changed — return the current state without writing a no-op audit row.
-    return toSupplierDto(current);
-  }
+const next = {
+  ...current,
+  name: input.name,
+  email: input.email ?? null,
+};
 
+const changes = diffFields(current, next, ['name', 'email']);
   const updated = await prisma.$transaction(async (tx) => {
     const row = await suppliersRepository.updateSupplier(tx, id, {
       name: input.name,
+      email: input.email ?? null,
       updatedBy: user.userId,
     });
     await writeAuditLog(

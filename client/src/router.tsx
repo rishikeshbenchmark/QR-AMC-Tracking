@@ -35,20 +35,21 @@ export const router = createBrowserRouter([
               {
                 element: <RequirePermission permission="master.manage" />,
                 children: [
-                  {
-                    path: 'masters',
-                    element: <MastersPage />,
-                    children: [
-                      { index: true, element: <Navigate to="categories" replace /> },
-                      { path: 'categories', element: <CategoriesPage /> },
-                      { path: 'customers', element: <CustomersPage /> },
-                      { path: 'makes', element: <MakesPage /> },
-                    ],
-                  },
-                  {
-                    path: 'masters/suppliers',
-                    element: <SuppliersPage />,
-                  },
+                 {
+  path: 'masters',
+  element: <MastersPage />,
+  children: [
+    { index: true, element: <Navigate to="categories" replace /> },
+
+    { path: 'categories', element: <CategoriesPage /> },
+
+    { path: 'customers', element: <CustomersPage /> },
+
+    { path: 'suppliers', element: <SuppliersPage /> },
+
+    { path: 'makes', element: <MakesPage /> },
+  ],
+},
                 ],
               },
             ],
