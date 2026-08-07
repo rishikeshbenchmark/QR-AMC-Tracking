@@ -21,5 +21,3 @@ mastersRouter.use("/customers", customersRouter);
 
 mastersRouter.use("/suppliers", suppliersRouter);
 mastersRouter.use("/makes", makesRouter);
-mastersRouter.use("/suppliers", suppliersRouter);
-mastersRouter.use("/makes", makesRouter);

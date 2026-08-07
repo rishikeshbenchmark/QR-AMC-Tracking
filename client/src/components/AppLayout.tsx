@@ -31,15 +31,7 @@ const NAV_ITEMS: NavItem[] = [
     to: '/masters/suppliers',
     icon: IconTruck,
     permission: 'master.manage',
-  },
-
-  {
-    label: 'Makes',
-    to: '/masters/makes',
-    icon: IconStack2,
-    permission: 'master.manage',
-  }
-  
+  },  
 ];
 
 export function AppLayout() {

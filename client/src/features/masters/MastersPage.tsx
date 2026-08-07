@@ -4,6 +4,8 @@ import { useLocation, useNavigate, Outlet } from 'react-router-dom';
 const TABS = [
   { value: 'categories', label: 'Categories' },
   { value: 'customers', label: 'Customers' },
+  { value: 'suppliers', label: 'Suppliers' },
+  { value: 'makes', label: 'Makes' },
 ];
 
 export function MastersPage() {
