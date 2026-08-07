@@ -8,6 +8,8 @@ const TABS = [
   { value: 'amc-suppliers', label: 'AMC Suppliers' },
   { value: 'makes', label: 'Makes' },
   { value: 'models', label: 'Models' },
+  { value: 'amc-suppliers', label: 'AMC Suppliers' }
+
 ];
 
 export function MastersPage() {
