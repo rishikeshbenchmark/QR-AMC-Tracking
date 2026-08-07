@@ -32,6 +32,14 @@ const NAV_ITEMS: NavItem[] = [
     icon: IconTruck,
     permission: 'master.manage',
   },
+
+  {
+    label: 'Makes',
+    to: '/masters/makes',
+    icon: IconStack2,
+    permission: 'master.manage',
+  }
+  
 ];
 
 export function AppLayout() {
@@ -78,7 +86,10 @@ export function AppLayout() {
               item.to === '/'
                 ? location.pathname === '/'
                 : item.to === '/masters'
-                  ? location.pathname === '/masters' || location.pathname.startsWith('/masters/categories') || location.pathname.startsWith('/masters/customers')
+                  ? location.pathname === '/masters' ||
+                    location.pathname.startsWith('/masters/categories') ||
+                    location.pathname.startsWith('/masters/customers') ||
+                    location.pathname.startsWith('/masters/makes')
                   : location.pathname.startsWith(item.to)
             }
             onClick={closeNav}
