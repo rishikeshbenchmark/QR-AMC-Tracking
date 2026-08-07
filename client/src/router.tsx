@@ -7,6 +7,8 @@ import { AppLayout } from '@/components/AppLayout';
 import { LoginPage } from '@/features/auth/LoginPage';
 import { MastersPage } from '@/features/masters/MastersPage';
 import { CategoriesPage } from '@/features/masters/categories/CategoriesPage';
+import { CustomersPage } from '@/features/masters/customers/CustomersPage';
+import { SuppliersPage } from '@/features/masters/categories/suppliers/suppliersPage';
 import { CustomersPage } from '@/features/masters/categories/customers/CustomersPage';
 import { SuppliersPage } from '@/features/masters/suppliers/suppliersPage';
 import { DashboardPage } from '@/features/dashboard/DashboardPage';
