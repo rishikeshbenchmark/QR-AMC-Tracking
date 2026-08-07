@@ -10,6 +10,7 @@ import { CategoriesPage } from '@/features/masters/categories/CategoriesPage';
 import { CustomersPage } from '@/features/masters/categories/customers/CustomersPage';
 import { SuppliersPage } from '@/features/masters/categories/suppliers/suppliersPage';
 import { DashboardPage } from '@/features/dashboard/DashboardPage';
+import { MakesPage } from '@/features/masters/makes/MakesPage';
 
 function AuthLayout() {
   return (
@@ -41,6 +42,7 @@ export const router = createBrowserRouter([
                       { index: true, element: <Navigate to="categories" replace /> },
                       { path: 'categories', element: <CategoriesPage /> },
                       { path: 'customers', element: <CustomersPage /> },
+                      { path: 'makes', element: <MakesPage /> },
                     ],
                   },
                   {
