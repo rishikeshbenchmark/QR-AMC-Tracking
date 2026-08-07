@@ -7,12 +7,8 @@ const TABS = [
   { value: 'suppliers', label: 'Suppliers' },
   { value: 'makes', label: 'Makes' },
   { value: 'models', label: 'Models' },
-<<<<<<< HEAD
-  ];
-=======
-
+  { value: 'amc-suppliers', label: 'AMC Suppliers' }
 ];
->>>>>>> c397a9df03d5d62ba4f7e901d5511186510848c8
 
 export function MastersPage() {
   const location = useLocation();
