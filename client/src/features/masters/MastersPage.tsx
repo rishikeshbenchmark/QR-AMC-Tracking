@@ -6,6 +6,7 @@ const TABS = [
   { value: 'customers', label: 'Customers' },
   { value: 'suppliers', label: 'Suppliers' },
   { value: 'makes', label: 'Makes' },
+  { value: 'models', label: 'Models' },
 ];
 
 export function MastersPage() {

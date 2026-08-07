@@ -11,6 +11,7 @@ import { CustomersPage } from '@/features/masters/categories/customers/Customers
 import { SuppliersPage } from '@/features/masters/categories/suppliers/suppliersPage';
 import { DashboardPage } from '@/features/dashboard/DashboardPage';
 import { MakesPage } from '@/features/masters/makes/MakesPage';
+import { ModelsPage } from '@/features/masters/models/ModelsPage';
 
 function AuthLayout() {
   return (
@@ -48,6 +49,8 @@ export const router = createBrowserRouter([
     { path: 'suppliers', element: <SuppliersPage /> },
 
     { path: 'makes', element: <MakesPage /> },
+
+    { path: 'models', element: <ModelsPage /> }
   ],
 },
                 ],
