@@ -12,8 +12,9 @@ export function MastersPage() {
   const location = useLocation();
   const navigate = useNavigate();
 
-  const activeTab = TABS.find((tab) => location.pathname.includes(`/masters/${tab.value}`))?.value
-    ?? 'categories';
+  const activeTab =
+  TABS.find((tab) => location.pathname.includes(`/masters/${tab.value}`))
+    ?.value ?? 'categories';
 
   return (
     <Stack maw={960}>
