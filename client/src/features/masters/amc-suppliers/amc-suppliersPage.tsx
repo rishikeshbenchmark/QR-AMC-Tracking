@@ -33,7 +33,7 @@ import type { AmcSupplierSortField } from './amc-suppliers.schemas';
 const PAGE_SIZE = 25;
 const SEARCH_DEBOUNCE_MS = 300;
 
-export function SuppliersPage() {
+export function AmcSuppliersPage() {
   const [searchInput, setSearchInput] = useState('');
   const [debouncedSearch] = useDebouncedValue(searchInput, SEARCH_DEBOUNCE_MS);
   const [page, setPage] = useState(1);
@@ -131,18 +131,18 @@ export function SuppliersPage() {
   return (
     <Stack maw={860}>
       <Group justify="space-between">
-        <Title order={3}>Suppliers</Title>
+        <Title order={3}>AMC Suppliers</Title>
         <Button leftSection={<IconPlus size={16} />} onClick={openCreate}>
-          New supplier
+          New AMC supplier
         </Button>
       </Group>
 
       <TextInput
-        placeholder="Search suppliers"
+        placeholder="Search AMC suppliers"
         leftSection={<IconSearch size={16} />}
         value={searchInput}
         onChange={(event) => setSearchInput(event.currentTarget.value)}
-        aria-label="Search suppliers"
+        aria-label="Search AMC suppliers"
         maw={320}
       />
 
@@ -155,7 +155,7 @@ export function SuppliersPage() {
       ) : query.isError ? (
         <Alert color="red" role="alert" variant="light">
           <Group justify="space-between">
-            <Text size="sm">{getApiErrorMessage(query.error, 'Could not load suppliers.')}</Text>
+            <Text size="sm">{getApiErrorMessage(query.error, 'Could not load AMC suppliers.')}</Text>
             <Button size="xs" variant="light" onClick={() => query.refetch()}>
               Retry
             </Button>
@@ -165,7 +165,7 @@ export function SuppliersPage() {
         <Center mih={160}>
           <Stack align="center" gap="xs">
             <Text c="dimmed">
-              {hasSearch ? 'No suppliers match your search.' : 'No suppliers yet.'}
+              {hasSearch ? 'No AMC suppliers match your search.' : 'No AMC suppliers yet.'}
             </Text>
             {!hasSearch && (
               <Button variant="light" leftSection={<IconPlus size={16} />} onClick={openCreate}>
@@ -187,7 +187,7 @@ export function SuppliersPage() {
           />
           <Group justify="space-between">
             <Text size="sm" c="dimmed">
-              {total} supplier{total === 1 ? '' : 's'} total
+              {total} AMC supplier{total === 1 ? '' : 's'} total
             </Text>
             {totalPages > 1 && <Pagination value={page} onChange={setPage} total={totalPages} />}
           </Group>
@@ -196,13 +196,13 @@ export function SuppliersPage() {
 
       <AmcSupplierFormModal
         opened={isFormOpen}
-        supplier={editing}
+        amcSupplier={editing}
         onClose={() => setFormOpen(false)}
       />
 
       <ConfirmDialog
         opened={pendingDelete !== null}
-        title="Delete supplier"
+        title="Delete AMC supplier"
         destructive
         loading={deleteAmcSupplier.isPending}
         confirmLabel="Delete"

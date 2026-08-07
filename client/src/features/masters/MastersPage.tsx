@@ -1,32 +1,31 @@
 import { Stack, Tabs, Title } from '@mantine/core';
-import { useLocation, useNavigate, Outlet } from 'react-router-dom';
+import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 
 const TABS = [
   { value: 'categories', label: 'Categories' },
   { value: 'customers', label: 'Customers' },
   { value: 'suppliers', label: 'Suppliers' },
+  { value: 'amc-suppliers', label: 'AMC Suppliers' },
   { value: 'makes', label: 'Makes' },
   { value: 'models', label: 'Models' },
-<<<<<<< HEAD
-  ];
-=======
-
 ];
->>>>>>> c397a9df03d5d62ba4f7e901d5511186510848c8
 
 export function MastersPage() {
   const location = useLocation();
   const navigate = useNavigate();
 
   const activeTab =
-  TABS.find((tab) => location.pathname.includes(`/masters/${tab.value}`))
-    ?.value ?? 'categories';
+    TABS.find((tab) => location.pathname.includes(`/masters/${tab.value}`))
+      ?.value ?? 'categories';
 
   return (
-    <Stack maw={960}>
-      <Title order={2}>Masters</Title>
+    <Stack>
+      <Title order={1}>Masters</Title>
 
-      <Tabs value={activeTab} onChange={(value) => value && navigate(`/masters/${value}`)}>
+      <Tabs
+        value={activeTab}
+        onChange={(value) => value && navigate(`/masters/${value}`)}
+      >
         <Tabs.List>
           {TABS.map((tab) => (
             <Tabs.Tab key={tab.value} value={tab.value}>
@@ -40,4 +39,3 @@ export function MastersPage() {
     </Stack>
   );
 }
-
