@@ -9,8 +9,6 @@ const TABS = [
   { value: 'makes', label: 'Makes' },
   { value: 'models', label: 'Models' },
 
-  { value: 'amc-suppliers', label: 'AMC Suppliers' }
-
 ];
 export function MastersPage() {
   const location = useLocation();
