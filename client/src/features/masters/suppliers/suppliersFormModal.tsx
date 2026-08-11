@@ -3,7 +3,12 @@ import { Alert, Button, Group, Modal, Stack, TextInput } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
-import { getApiErrorCode, getApiErrorMessage, getApiFieldErrors } from '@/api/client';
+
+import {
+  getApiErrorCode,
+  getApiErrorMessage,
+  getApiFieldErrors,
+} from '@/api/client';
 
 import type { Supplier } from './suppliers.api';
 import { supplierFormSchema } from './suppliers.schemas';
@@ -12,15 +17,18 @@ import { useCreateSupplier, useUpdateSupplier } from './suppliers.queries';
 
 interface SupplierFormModalProps {
   opened: boolean;
-  /** null → create mode; a supplier → edit mode (name pre-filled). */
   supplier: Supplier | null;
   onClose: () => void;
 }
 
-/** The form's field names, so server `details` can only be mapped onto inputs that exist. */
-const FORM_FIELDS = new Set<keyof SupplierFormValues>(['name']);
+/** Fields that can receive server-side validation errors. */
+const FORM_FIELDS = new Set<keyof SupplierFormValues>(['name', 'email']);
 
-export function SupplierFormModal({ opened, supplier, onClose }: SupplierFormModalProps) {
+export function SupplierFormModal({
+  opened,
+  supplier,
+  onClose,
+}: SupplierFormModalProps) {
   const isEdit = supplier !== null;
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -35,13 +43,20 @@ export function SupplierFormModal({ opened, supplier, onClose }: SupplierFormMod
     formState: { errors, isSubmitting },
   } = useForm<SupplierFormValues>({
     resolver: zodResolver(supplierFormSchema),
-    defaultValues: { name: '' },
+    defaultValues: {
+      name: '',
+      email: '',
+    },
   });
 
-  // Re-seed the form each time the modal opens, so edit shows the current name and create is blank.
+  // Load current supplier data when editing, or clear the form for create mode.
   useEffect(() => {
     if (opened) {
-      reset({ name: supplier?.name ?? '' });
+      reset({
+        name: supplier?.name ?? '',
+        email: supplier?.email ?? '',
+      });
+
       setFormError(null);
     }
   }, [opened, supplier, reset]);
@@ -49,32 +64,62 @@ export function SupplierFormModal({ opened, supplier, onClose }: SupplierFormMod
   const applyServerErrors = (error: unknown): void => {
     const fieldErrors = getApiFieldErrors(error);
     let mappedAny = false;
+
     for (const { field, issue } of fieldErrors) {
       if (FORM_FIELDS.has(field as keyof SupplierFormValues)) {
-        setError(field as keyof SupplierFormValues, { message: issue });
+        setError(field as keyof SupplierFormValues, {
+          message: issue,
+        });
+
         mappedAny = true;
       }
     }
-    // A duplicate name comes back as a 409 with no field details — pin it to the name input.
-    if (!mappedAny && getApiErrorCode(error) === 'CATEGORY_NAME_TAKEN') {
-      setError('name', { message: getApiErrorMessage(error) });
+
+    // Duplicate supplier name.
+    if (
+      !mappedAny &&
+      getApiErrorCode(error) === 'SUPPLIER_NAME_TAKEN'
+    ) {
+      setError('name', {
+        message: getApiErrorMessage(error),
+      });
+
       mappedAny = true;
     }
+
     if (!mappedAny) {
-      setFormError(getApiErrorMessage(error, 'Could not save the supplier. Please try again.'));
+      setFormError(
+        getApiErrorMessage(
+          error,
+          'Could not save the supplier. Please try again.',
+        ),
+      );
     }
   };
 
   const onSubmit = handleSubmit(async (values) => {
     setFormError(null);
+
     try {
       if (isEdit) {
-        await updateSupplier.mutateAsync({ id: supplier.id, input: values });
-        notifications.show({ message: `Supplier “${values.name}” updated.`, color: 'green' });
+        await updateSupplier.mutateAsync({
+          id: supplier.id,
+          input: values,
+        });
+
+        notifications.show({
+          message: `Supplier “${values.name}” updated.`,
+          color: 'green',
+        });
       } else {
         await createSupplier.mutateAsync(values);
-        notifications.show({ message: `Supplier “${values.name}” created.`, color: 'green' });
+
+        notifications.show({
+          message: `Supplier “${values.name}” created.`,
+          color: 'green',
+        });
       }
+
       onClose();
     } catch (error) {
       applyServerErrors(error);
@@ -95,6 +140,7 @@ export function SupplierFormModal({ opened, supplier, onClose }: SupplierFormMod
               {formError}
             </Alert>
           )}
+
           <TextInput
             label="Name"
             required
@@ -102,10 +148,23 @@ export function SupplierFormModal({ opened, supplier, onClose }: SupplierFormMod
             error={errors.name?.message}
             {...register('name')}
           />
+
+          <TextInput
+            label="Email (optional)"
+            placeholder="Enter supplier email"
+            error={errors.email?.message}
+            {...register('email')}
+          />
+
           <Group justify="flex-end" gap="sm">
-            <Button variant="default" onClick={onClose} disabled={isSubmitting}>
+            <Button
+              variant="default"
+              onClick={onClose}
+              disabled={isSubmitting}
+            >
               Cancel
             </Button>
+
             <Button type="submit" loading={isSubmitting}>
               {isEdit ? 'Save changes' : 'Create'}
             </Button>
