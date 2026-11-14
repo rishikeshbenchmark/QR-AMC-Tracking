@@ -47,6 +47,8 @@ export function MasterSelect({
 }: MasterSelectProps) {
   const combobox = useCombobox({
     onDropdownClose: () => combobox.resetSelectedOption(),
+    // Focus the search box on open, so opening the picker and typing works without a second click.
+    onDropdownOpen: () => combobox.focusSearchInput(),
   });
 
   const [search, setSearch] = useState('');

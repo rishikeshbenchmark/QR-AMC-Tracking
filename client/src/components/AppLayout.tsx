@@ -1,6 +1,6 @@
 import { AppShell, Burger, Button, Group, NavLink, Text } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
-import { IconCategory, IconLayoutDashboard } from '@tabler/icons-react';
+import { IconCategory, IconDeviceDesktop, IconLayoutDashboard } from '@tabler/icons-react';
 import { Link, Outlet, useLocation } from 'react-router-dom';
 
 import { useAuth } from '@/auth/AuthContext';
@@ -15,6 +15,7 @@ interface NavItem {
 
 const NAV_ITEMS: NavItem[] = [
   { label: 'Dashboard', to: '/', icon: IconLayoutDashboard },
+  { label: 'Assets', to: '/assets', icon: IconDeviceDesktop, permission: 'asset.read' },
   { label: 'Categories', to: '/masters/categories', icon: IconCategory, permission: 'master.manage' },
 ];
 

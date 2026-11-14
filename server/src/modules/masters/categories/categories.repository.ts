@@ -4,7 +4,7 @@ import { prisma } from '@/shared/prisma';
 
 /**
  * The one place the product_categories table is queried. Every read filters `company_id` AND
- * `is_deleted = false` — a missing filter is a tenant-leak bug, not a cosmetic one (CLAUDE.md).
+ * `is_deleted = false` — a missing filter is a tenant-leak bug, not a cosmetic one.
  * Writes take a transaction client so the mutation and its audit row commit atomically.
  */
 
@@ -20,7 +20,7 @@ interface ListParams {
   order: SortOrder;
 }
 
-/** Only the columns a DTO needs — never `select *` (CLAUDE.md). */
+/** Only the columns a DTO needs — never `select *` */
 const categorySelect = {
   id: true,
   name: true,
