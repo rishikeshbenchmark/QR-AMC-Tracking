@@ -5,18 +5,15 @@ import { logger } from '@/shared/logger';
 import { prisma } from '@/shared/prisma';
 
 import * as suppliersRepository from './suppliers.repository';
-import type { CreateSupplierInput, ListSuppliersQuery, UpdateSupplierInput, } from './suppliers.schemas'; import type { SupplierDto } from './suppliers.types';
+import type { SupplierRow } from './suppliers.repository';
+import type {
+  CreateSupplierInput,
+  ListSuppliersQuery,
+  UpdateSupplierInput,
+} from './suppliers.schemas';
+import type { SupplierDto } from './suppliers.types';
 
-/** Audit entity_type for this master. Interns cloning this file change this one string. */
 const ENTITY_TYPE = 'supplier';
-
-interface SupplierRow {
-  id: string;
-  name: string;
-  email: string | null;
-  createdAt: Date;
-  updatedAt: Date | null;
-}
 
 function toSupplierDto(row: SupplierRow): SupplierDto {
   return {
@@ -55,31 +52,29 @@ export async function listSuppliers(
 export async function getSupplier(user: AuthenticatedUser, id: string): Promise<SupplierDto> {
   const row = await suppliersRepository.findSupplierById(user.companyId, id);
   if (!row) {
-    // A row in another tenant is a 404, never a 403 — don't confirm it exists (CLAUDE.md security).
     throw AppError.notFound('Supplier not found.');
   }
   return toSupplierDto(row);
 }
 
-/**
- * Create a supplier (also the on-the-fly create path used by <MasterSelect>). The duplicate check
- * returns 409 before hitting the DB; the filtered unique index is the backstop if two requests race.
- * The insert and its audit row share one transaction.
- */
+/** Create a supplier (also the on-the-fly create used by <MasterSelect> on the asset form). */
 export async function createSupplier(
   user: AuthenticatedUser,
   input: CreateSupplierInput,
 ): Promise<SupplierDto> {
   const existing = await suppliersRepository.findSupplierByName(user.companyId, input.name);
   if (existing) {
-    throw AppError.conflict('SUPPLIER_NAME_TAKEN', `A supplier named "${input.name}" already exists.`);
+    throw AppError.conflict(
+      'SUPPLIER_NAME_TAKEN',
+      `A supplier named "${input.name}" already exists.`,
+    );
   }
 
   const created = await prisma.$transaction(async (tx) => {
     const row = await suppliersRepository.createSupplier(tx, {
       companyId: user.companyId,
       name: input.name,
-      email: input.email,
+      email: input.email ?? null,
       createdBy: user.userId,
     });
     await writeAuditLog(tx, {
@@ -93,7 +88,10 @@ export async function createSupplier(
     return row;
   });
 
-  logger.info({ companyId: user.companyId, supplierId: created.id, userId: user.userId }, 'Supplier created');
+  logger.info(
+    { companyId: user.companyId, supplierId: created.id, userId: user.userId },
+    'Supplier created',
+  );
   return toSupplierDto(created);
 }
 
@@ -109,20 +107,27 @@ export async function updateSupplier(
 
   const duplicate = await suppliersRepository.findSupplierByName(user.companyId, input.name, id);
   if (duplicate) {
-    throw AppError.conflict('SUPPLIER_NAME_TAKEN', `A supplier named "${input.name}" already exists.`);
+    throw AppError.conflict(
+      'SUPPLIER_NAME_TAKEN',
+      `A supplier named "${input.name}" already exists.`,
+    );
   }
 
-const next = {
-  ...current,
-  name: input.name,
-  email: input.email ?? null,
-};
+  const nextEmail = input.email ?? null;
+  // Both editable fields are diffed, so clearing an email is recorded as its own audit row.
+  const changes = diffFields(
+    { name: current.name, email: current.email },
+    { name: input.name, email: nextEmail },
+    ['name', 'email'],
+  );
+  if (changes.length === 0) {
+    return toSupplierDto(current);
+  }
 
-const changes = diffFields(current, next, ['name', 'email']);
   const updated = await prisma.$transaction(async (tx) => {
     const row = await suppliersRepository.updateSupplier(tx, id, {
       name: input.name,
-      email: input.email ?? null,
+      email: nextEmail,
       updatedBy: user.userId,
     });
     await writeAuditLog(

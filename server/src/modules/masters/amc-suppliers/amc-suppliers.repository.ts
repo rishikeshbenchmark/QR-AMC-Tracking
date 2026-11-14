@@ -3,9 +3,9 @@ import type { Prisma } from '@prisma/client';
 import { prisma } from '@/shared/prisma';
 
 /**
- * The one place the AMC suppliers table is queried. Every read filters `company_id` AND
- * `is_deleted = false` — a missing filter is a tenant-leak bug, not a cosmetic one (CLAUDE.md).
- * Writes take a transaction client so the mutation and its audit row commit atomically.
+ * The one place the amc_suppliers table is queried. Every read filters `company_id` AND
+ * `is_deleted = false`; writes take a transaction client so the mutation and its audit row commit
+ * atomically.
  */
 
 export type AmcSupplierListSort = 'name' | 'createdAt';
@@ -20,7 +20,6 @@ interface ListParams {
   order: SortOrder;
 }
 
-/** Only the columns a DTO needs — never `select *` (CLAUDE.md). */
 const amcSupplierSelect = {
   id: true,
   name: true,
@@ -28,21 +27,19 @@ const amcSupplierSelect = {
   updatedAt: true,
 } satisfies Prisma.AmcSupplierSelect;
 
-function baseWhere(
-  companyId: string,
-  search?: string,
-): Prisma.AmcSupplierWhereInput {
+export type AmcSupplierRow = Prisma.AmcSupplierGetPayload<{ select: typeof amcSupplierSelect }>;
+
+function baseWhere(companyId: string, search?: string): Prisma.AmcSupplierWhereInput {
   return {
     companyId,
     isDeleted: false,
+    // SQL Server's default collation is case-insensitive, so `contains` matches regardless of case.
     ...(search ? { name: { contains: search } } : {}),
   };
 }
 
-/** One page of live AMC suppliers plus the total for pagination meta. */
 export async function listAmcSuppliers(params: ListParams) {
   const where = baseWhere(params.companyId, params.search);
-
   const [rows, total] = await Promise.all([
     prisma.amcSupplier.findMany({
       where,
@@ -53,7 +50,6 @@ export async function listAmcSuppliers(params: ListParams) {
     }),
     prisma.amcSupplier.count({ where }),
   ]);
-
   return { rows, total };
 }
 
@@ -64,15 +60,8 @@ export function findAmcSupplierById(companyId: string, id: string) {
   });
 }
 
-/**
- * Live AMC supplier with the given name in this tenant, if any. Used for the duplicate check
- * before create/update.
- */
-export function findAmcSupplierByName(
-  companyId: string,
-  name: string,
-  excludeId?: string,
-) {
+/** Mirrors the filtered unique index ux_amc_suppliers_company_name (WHERE is_deleted = 0). */
+export function findAmcSupplierByName(companyId: string, name: string, excludeId?: string) {
   return prisma.amcSupplier.findFirst({
     where: {
       companyId,
@@ -86,18 +75,10 @@ export function findAmcSupplierByName(
 
 export function createAmcSupplier(
   tx: Prisma.TransactionClient,
-  data: {
-    companyId: string;
-    name: string;
-    createdBy: string;
-  },
+  data: { companyId: string; name: string; createdBy: string },
 ) {
   return tx.amcSupplier.create({
-    data: {
-      companyId: data.companyId,
-      name: data.name,
-      createdBy: data.createdBy,
-    },
+    data,
     select: amcSupplierSelect,
   });
 }
@@ -105,10 +86,7 @@ export function createAmcSupplier(
 export function updateAmcSupplier(
   tx: Prisma.TransactionClient,
   id: string,
-  data: {
-    name: string;
-    updatedBy: string;
-  },
+  data: { name: string; updatedBy: string },
 ) {
   return tx.amcSupplier.update({
     where: { id },
@@ -121,7 +99,6 @@ export function updateAmcSupplier(
   });
 }
 
-/** Soft delete — sets the flag and stamps who/when. The row is never physically removed. */
 export function softDeleteAmcSupplier(
   tx: Prisma.TransactionClient,
   id: string,
@@ -129,11 +106,7 @@ export function softDeleteAmcSupplier(
 ) {
   return tx.amcSupplier.update({
     where: { id },
-    data: {
-      isDeleted: true,
-      deletedAt: new Date(),
-      deletedBy,
-    },
+    data: { isDeleted: true, deletedAt: new Date(), deletedBy },
     select: { id: true },
   });
 }

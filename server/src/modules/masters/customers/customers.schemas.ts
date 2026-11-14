@@ -1,12 +1,12 @@
 import { z } from 'zod';
 
 /**
- * Validation contract for the product-category master — the reference shape every other master
- * (make/model/supplier/customer) is cloned from. Name is trimmed at the boundary so trailing
- * whitespace never creates a "different" duplicate, and the tenant is never taken from the client
- * (it comes from the JWT in the service), so it does not appear here.
+ * Validation contract for the customer master. Same two differences from the category template as
+ * suppliers: a 255-wide name and an optional email normalised from `''` to `undefined` at the
+ * boundary, so the service can store `?? null` and never `''`.
  */
 const CUSTOMER_NAME_MAX = 255;
+const CUSTOMER_EMAIL_MAX = 255;
 
 const customerName = z
   .string({ required_error: 'Name is required.' })
@@ -14,19 +14,20 @@ const customerName = z
   .min(1, 'Name is required.')
   .max(CUSTOMER_NAME_MAX, `Name must be at most ${CUSTOMER_NAME_MAX} characters.`);
 
-  const customerEmail = z
+const customerEmail = z
   .string()
   .trim()
-  .max(255)
+  .max(CUSTOMER_EMAIL_MAX, `Email must be at most ${CUSTOMER_EMAIL_MAX} characters.`)
   .email('Enter a valid email address.')
   .optional()
   .or(z.literal('').transform(() => undefined));
+
 export const createCustomerSchema = z.object({
   name: customerName,
-  email: customerEmail, 
+  email: customerEmail,
 });
 
-/** Update replaces the whole editable surface — for a customer that is just the name. */
+/** A PUT replaces the whole editable surface, so a blank email CLEARS the stored one. */
 export const updateCustomerSchema = z.object({
   name: customerName,
   email: customerEmail,
@@ -36,7 +37,6 @@ export const customerIdParamSchema = z.object({
   id: z.string().uuid('Invalid customer id.'),
 });
 
-/** Whitelisted list controls. Unknown sort/order values are rejected, never passed to the query. */
 export const listCustomersQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(100).default(25),

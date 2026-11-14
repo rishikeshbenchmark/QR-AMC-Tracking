@@ -3,14 +3,9 @@ import type { RequestHandler } from 'express';
 import { getAuthUser } from '@/middlewares/auth.middleware';
 
 import * as makesService from './makes.service';
-import type {
-  CreateMakeInput,
-  ListMakesQuery,
-  MakeIdParam,
-  UpdateMakeInput,
-} from './makes.schemas';
+import type { CreateMakeInput, ListMakesQuery, MakeIdParam, UpdateMakeInput } from './makes.schemas';
 
-/** GET /masters/makes — paginated, searchable, optionally category-filtered list. */
+/** GET /masters/makes — paginated, searchable, filterable by parent category. */
 export const list: RequestHandler = async (req, res, next) => {
   try {
     const user = getAuthUser(req);
@@ -33,7 +28,7 @@ export const getOne: RequestHandler = async (req, res, next) => {
   }
 };
 
-/** POST /masters/makes — also the on-the-fly create path used by <MasterSelect>. */
+/** POST /masters/makes — also the on-the-fly create used by <MasterSelect>. */
 export const create: RequestHandler = async (req, res, next) => {
   try {
     const user = getAuthUser(req);

@@ -12,27 +12,16 @@ import {
 } from './models.schemas';
 
 /**
- * Model master routes. Mounted under /masters (which applies `authenticate` once), so the chain per
- * CLAUDE.md is: auth (parent) -> rbac -> validate -> controller. All CRUD is gated on the single
- * `master.manage` permission (Admin + Backoffice).
+ * Model master routes. Mounted under /masters (which applies `authenticate` once), so the chain is
+ * auth (parent) -> rbac -> validate -> controller. All CRUD is gated on `master.manage`.
  */
 export const modelsRouter = Router();
 
 const canManageMasters = requirePermission('master.manage');
 
-modelsRouter.get(
-  '/',
-  canManageMasters,
-  validate(listModelsQuerySchema, 'query'),
-  modelsController.list,
-);
+modelsRouter.get('/', canManageMasters, validate(listModelsQuerySchema, 'query'), modelsController.list);
 
-modelsRouter.post(
-  '/',
-  canManageMasters,
-  validate(createModelSchema),
-  modelsController.create,
-);
+modelsRouter.post('/', canManageMasters, validate(createModelSchema), modelsController.create);
 
 modelsRouter.get(
   '/:id',

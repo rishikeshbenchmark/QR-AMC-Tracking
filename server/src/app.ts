@@ -7,6 +7,7 @@ import pinoHttp from 'pino-http';
 
 import { env } from '@/config/env';
 import { errorHandler, notFoundHandler } from '@/middlewares/error.middleware';
+import { assetsRouter } from '@/modules/assets/assets.routes';
 import { authRouter } from '@/modules/auth/auth.routes';
 import { mastersRouter } from '@/modules/masters/masters.routes';
 import { logger } from '@/shared/logger';
@@ -29,6 +30,7 @@ app.get(`${API_PREFIX}/health`, (_req, res) => {
 // Feature routers mount here, between health and the 404 handler.
 app.use(`${API_PREFIX}/auth`, authRouter);
 app.use(`${API_PREFIX}/masters`, mastersRouter);
+app.use(`${API_PREFIX}/assets`, assetsRouter);
 
 app.use(notFoundHandler);
 app.use(errorHandler);

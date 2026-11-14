@@ -1,27 +1,18 @@
-import * as categoriesRepository from '@/modules/masters/categories/categories.repository';
 import type { AuthenticatedUser } from '@/modules/auth/auth.types';
 import { AUDIT_ACTION, diffFields, writeAuditLog } from '@/shared/audit';
 import { AppError } from '@/shared/errors/AppError';
 import { logger } from '@/shared/logger';
 import { prisma } from '@/shared/prisma';
 
+import * as categoriesRepository from '../categories/categories.repository';
+
 import * as makesRepository from './makes.repository';
+import type { MakeRow } from './makes.repository';
 import type { CreateMakeInput, ListMakesQuery, UpdateMakeInput } from './makes.schemas';
 import type { MakeDto } from './makes.types';
 
-/** Audit entity_type for this master. */
 const ENTITY_TYPE = 'product_make';
 
-interface MakeRow {
-  id: string;
-  name: string;
-  categoryId: string;
-  createdAt: Date;
-  updatedAt: Date | null;
-  category: { name: string };
-}
-
-/** Flattens the nested Prisma `category` relation into `categoryName` — never returned nested. */
 function toMakeDto(row: MakeRow): MakeDto {
   return {
     id: row.id,
@@ -38,15 +29,18 @@ export interface PaginatedMakes {
   meta: { page: number; limit: number; total: number };
 }
 
-export async function listMakes(user: AuthenticatedUser, query: ListMakesQuery): Promise<PaginatedMakes> {
+export async function listMakes(
+  user: AuthenticatedUser,
+  query: ListMakesQuery,
+): Promise<PaginatedMakes> {
   const { rows, total } = await makesRepository.listMakes({
     companyId: user.companyId,
     skip: (query.page - 1) * query.limit,
     take: query.limit,
     search: query.search,
+    categoryId: query.categoryId,
     sort: query.sort,
     order: query.order,
-    categoryId: query.categoryId,
   });
 
   return {
@@ -58,31 +52,21 @@ export async function listMakes(user: AuthenticatedUser, query: ListMakesQuery):
 export async function getMake(user: AuthenticatedUser, id: string): Promise<MakeDto> {
   const row = await makesRepository.findMakeById(user.companyId, id);
   if (!row) {
-    // A row in another tenant is a 404, never a 403 — don't confirm it exists (CLAUDE.md security).
     throw AppError.notFound('Make not found.');
   }
   return toMakeDto(row);
 }
 
 /**
- * Confirms the category exists, belongs to this tenant, and is not soft-deleted. Reuses the
- * categories repository's finder (not a duplicated query) — without this check a caller could
- * attach a make to any tenant's category by guessing a uuid. Missing/foreign parent -> 404.
+ * Create a make (also the on-the-fly create path used by <MasterSelect>). The parent check is not
+ * decoration: without it a caller could attach a make to another tenant's category by guessing a
+ * uuid, which is why a parent outside this company comes back as a plain 404.
  */
-async function assertCategoryExists(companyId: string, categoryId: string): Promise<void> {
-  const category = await categoriesRepository.findCategoryById(companyId, categoryId);
-  if (!category) {
-    throw AppError.notFound('Category not found.');
-  }
-}
-
-/**
- * Create a make (also the on-the-fly create path used by <MasterSelect> when building a model).
- * Parent is validated before the duplicate check so a bad categoryId fails fast with the more
- * specific error. The insert and its audit row share one transaction.
- */
-export async function createMake(user: AuthenticatedUser, input: CreateMakeInput): Promise<MakeDto> {
-  await assertCategoryExists(user.companyId, input.categoryId);
+export async function createMake(
+  user: AuthenticatedUser,
+  input: CreateMakeInput,
+): Promise<MakeDto> {
+  await assertCategoryExists(user, input.categoryId);
 
   const existing = await makesRepository.findMakeByName(user.companyId, input.name);
   if (existing) {
@@ -121,28 +105,27 @@ export async function updateMake(
     throw AppError.notFound('Make not found.');
   }
 
-  await assertCategoryExists(user.companyId, input.categoryId);
+  await assertCategoryExists(user, input.categoryId);
 
   const duplicate = await makesRepository.findMakeByName(user.companyId, input.name, id);
   if (duplicate) {
     throw AppError.conflict('MAKE_NAME_TAKEN', `A make named "${input.name}" already exists.`);
   }
 
-  // Diff both name and categoryId — moving a make to a different category is a field change too,
-  // and the audit log must record the move, not just a rename (docs/tasks/makes-and-models.md).
-  const changes = diffFields(current, { ...current, name: input.name, categoryId: input.categoryId }, [
-    'name',
-    'categoryId',
-  ]);
+  // Moving a make between categories is a field change too, so the audit log records the move.
+  const changes = diffFields(
+    { name: current.name, categoryId: current.categoryId },
+    { name: input.name, categoryId: input.categoryId },
+    ['name', 'categoryId'],
+  );
   if (changes.length === 0) {
-    // Nothing actually changed — return the current state without writing a no-op audit row.
     return toMakeDto(current);
   }
 
   const updated = await prisma.$transaction(async (tx) => {
     const row = await makesRepository.updateMake(tx, id, {
-      categoryId: input.categoryId,
       name: input.name,
+      categoryId: input.categoryId,
       updatedBy: user.userId,
     });
     await writeAuditLog(
@@ -184,4 +167,12 @@ export async function deleteMake(user: AuthenticatedUser, id: string): Promise<v
   });
 
   logger.info({ companyId: user.companyId, makeId: id, userId: user.userId }, 'Make deleted');
+}
+
+/** Reuses the category repository rather than duplicating the query. */
+async function assertCategoryExists(user: AuthenticatedUser, categoryId: string): Promise<void> {
+  const category = await categoriesRepository.findCategoryById(user.companyId, categoryId);
+  if (!category) {
+    throw AppError.notFound('Category not found.');
+  }
 }

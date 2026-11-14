@@ -4,12 +4,9 @@ import { prisma } from '@/shared/prisma';
 
 /**
  * The one place the product_makes table is queried. Every read filters `company_id` AND
- * `is_deleted = false` — a missing filter is a tenant-leak bug, not a cosmetic one (CLAUDE.md).
- * Writes take a transaction client so the mutation and its audit row commit atomically.
- *
- * Make-name uniqueness is per company only (ux_makes_company_name on (company_id, name)), same
- * shape as categories — unlike models, which are unique per make. Do not add categoryId to the
- * duplicate-check query below; that would be the model rule leaking into the make module.
+ * `is_deleted = false`; writes take a transaction client so the mutation and its audit row commit
+ * atomically. Cloned from categories.repository — the additions are the nested category select and
+ * the parent filter.
  */
 
 export type MakeListSort = 'name' | 'createdAt';
@@ -20,15 +17,11 @@ interface ListParams {
   skip: number;
   take: number;
   search?: string;
+  categoryId?: string;
   sort: MakeListSort;
   order: SortOrder;
-  categoryId?: string;
 }
 
-/**
- * Only the columns a DTO needs — never `select *` (CLAUDE.md). The nested category select pulls
- * the parent's name in the same query (one round trip for the whole page, not one per row).
- */
 const makeSelect = {
   id: true,
   name: true,
@@ -38,7 +31,13 @@ const makeSelect = {
   category: { select: { name: true } },
 } satisfies Prisma.ProductMakeSelect;
 
-function baseWhere(companyId: string, search?: string, categoryId?: string): Prisma.ProductMakeWhereInput {
+export type MakeRow = Prisma.ProductMakeGetPayload<{ select: typeof makeSelect }>;
+
+function baseWhere(
+  companyId: string,
+  search?: string,
+  categoryId?: string,
+): Prisma.ProductMakeWhereInput {
   return {
     companyId,
     isDeleted: false,
@@ -48,7 +47,6 @@ function baseWhere(companyId: string, search?: string, categoryId?: string): Pri
   };
 }
 
-/** One page of live makes plus the total for pagination meta. */
 export async function listMakes(params: ListParams) {
   const where = baseWhere(params.companyId, params.search, params.categoryId);
   const [rows, total] = await Promise.all([
@@ -72,10 +70,8 @@ export function findMakeById(companyId: string, id: string) {
 }
 
 /**
- * Live make with the given name in this tenant, if any. Used for the duplicate check before
- * create/update; mirrors the filtered unique index ux_makes_company_name (WHERE is_deleted = 0).
- * `excludeId` lets an update ignore the row it is editing. Company-scoped only — no categoryId,
- * because a make name is unique across the whole tenant, not per category.
+ * Live make with the given name in this tenant. Mirrors ux_makes_company_name, which is on
+ * (company_id, name) — NOT scoped by category, so two categories cannot both hold a "Dell".
  */
 export function findMakeByName(companyId: string, name: string, excludeId?: string) {
   return prisma.productMake.findFirst({
@@ -94,12 +90,7 @@ export function createMake(
   data: { companyId: string; categoryId: string; name: string; createdBy: string },
 ) {
   return tx.productMake.create({
-    data: {
-      companyId: data.companyId,
-      categoryId: data.categoryId,
-      name: data.name,
-      createdBy: data.createdBy,
-    },
+    data,
     select: makeSelect,
   });
 }
@@ -107,13 +98,13 @@ export function createMake(
 export function updateMake(
   tx: Prisma.TransactionClient,
   id: string,
-  data: { categoryId: string; name: string; updatedBy: string },
+  data: { name: string; categoryId: string; updatedBy: string },
 ) {
   return tx.productMake.update({
     where: { id },
     data: {
-      categoryId: data.categoryId,
       name: data.name,
+      categoryId: data.categoryId,
       updatedBy: data.updatedBy,
       updatedAt: new Date(),
     },
@@ -121,19 +112,10 @@ export function updateMake(
   });
 }
 
-/** Soft delete — sets the flag and stamps who/when. The row is never physically removed. */
-export function softDeleteMake(
-  tx: Prisma.TransactionClient,
-  id: string,
-  deletedBy: string,
-) {
+export function softDeleteMake(tx: Prisma.TransactionClient, id: string, deletedBy: string) {
   return tx.productMake.update({
     where: { id },
-    data: {
-      isDeleted: true,
-      deletedAt: new Date(),
-      deletedBy,
-    },
+    data: { isDeleted: true, deletedAt: new Date(), deletedBy },
     select: { id: true },
   });
 }

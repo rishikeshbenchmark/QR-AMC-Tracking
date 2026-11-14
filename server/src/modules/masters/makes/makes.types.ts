@@ -1,7 +1,7 @@
 /**
- * The make shape returned to the client. Built explicitly by a mapper in the service — never a raw
- * Prisma entity — so tenant/audit/soft-delete columns never leak into a response. Includes the
- * parent category's id and flattened name so the Makes table can render without a second request.
+ * The make shape returned to the client. The parent category's id AND name travel together so the
+ * table can show "Dell (Laptop)" without a second request. Built explicitly by a mapper in the
+ * service — never a raw Prisma entity, never the nested relation object.
  */
 export interface MakeDto {
   id: string;

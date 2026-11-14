@@ -5,7 +5,8 @@ import { ProtectedRoute } from '@/auth/ProtectedRoute';
 import { RequirePermission } from '@/auth/RequirePermission';
 
 import { AppLayout } from '@/components/AppLayout';
-
+import { AssetDetailPage } from '@/features/assets/AssetDetailPage';
+import { AssetsPage } from '@/features/assets/AssetsPage';
 import { LoginPage } from '@/features/auth/LoginPage';
 import { DashboardPage } from '@/features/dashboard/DashboardPage';
 
@@ -43,6 +44,13 @@ export const router = createBrowserRouter([
               {
                 index: true,
                 element: <DashboardPage />,
+              },
+              {
+                element: <RequirePermission permission="asset.read" />,
+                children: [
+                  { path: 'assets', element: <AssetsPage /> },
+                  { path: 'assets/:id', element: <AssetDetailPage /> },
+                ],
               },
               {
                 element: <RequirePermission permission="master.manage" />,

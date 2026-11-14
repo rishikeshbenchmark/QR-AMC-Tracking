@@ -5,6 +5,7 @@ import { logger } from '@/shared/logger';
 import { prisma } from '@/shared/prisma';
 
 import * as amcSuppliersRepository from './amc-suppliers.repository';
+import type { AmcSupplierRow } from './amc-suppliers.repository';
 import type {
   CreateAmcSupplierInput,
   ListAmcSuppliersQuery,
@@ -12,15 +13,7 @@ import type {
 } from './amc-suppliers.schemas';
 import type { AmcSupplierDto } from './amc-suppliers.types';
 
-/** Audit entity_type for this master. */
 const ENTITY_TYPE = 'amc_supplier';
-
-interface AmcSupplierRow {
-  id: string;
-  name: string;
-  createdAt: Date;
-  updatedAt: Date | null;
-}
 
 function toAmcSupplierDto(row: AmcSupplierRow): AmcSupplierDto {
   return {
@@ -51,11 +44,7 @@ export async function listAmcSuppliers(
 
   return {
     data: rows.map(toAmcSupplierDto),
-    meta: {
-      page: query.page,
-      limit: query.limit,
-      total,
-    },
+    meta: { page: query.page, limit: query.limit, total },
   };
 }
 
@@ -64,23 +53,18 @@ export async function getAmcSupplier(
   id: string,
 ): Promise<AmcSupplierDto> {
   const row = await amcSuppliersRepository.findAmcSupplierById(user.companyId, id);
-
   if (!row) {
-    throw AppError.notFound('AMC Supplier not found.');
+    throw AppError.notFound('AMC supplier not found.');
   }
-
   return toAmcSupplierDto(row);
 }
 
+/** Create an AMC supplier (also the on-the-fly create used by <MasterSelect> on the Step-2 form). */
 export async function createAmcSupplier(
   user: AuthenticatedUser,
   input: CreateAmcSupplierInput,
 ): Promise<AmcSupplierDto> {
-  const existing = await amcSuppliersRepository.findAmcSupplierByName(
-    user.companyId,
-    input.name,
-  );
-
+  const existing = await amcSuppliersRepository.findAmcSupplierByName(user.companyId, input.name);
   if (existing) {
     throw AppError.conflict(
       'AMC_SUPPLIER_NAME_TAKEN',
@@ -94,7 +78,6 @@ export async function createAmcSupplier(
       name: input.name,
       createdBy: user.userId,
     });
-
     await writeAuditLog(tx, {
       companyId: user.companyId,
       entityType: ENTITY_TYPE,
@@ -103,19 +86,13 @@ export async function createAmcSupplier(
       newValue: row.name,
       changedBy: user.userId,
     });
-
     return row;
   });
 
   logger.info(
-    {
-      companyId: user.companyId,
-      amcSupplierId: created.id,
-      userId: user.userId,
-    },
-    'AMC Supplier created',
+    { companyId: user.companyId, amcSupplierId: created.id, userId: user.userId },
+    'AMC supplier created',
   );
-
   return toAmcSupplierDto(created);
 }
 
@@ -124,13 +101,9 @@ export async function updateAmcSupplier(
   id: string,
   input: UpdateAmcSupplierInput,
 ): Promise<AmcSupplierDto> {
-  const current = await amcSuppliersRepository.findAmcSupplierById(
-    user.companyId,
-    id,
-  );
-
+  const current = await amcSuppliersRepository.findAmcSupplierById(user.companyId, id);
   if (!current) {
-    throw AppError.notFound('AMC Supplier not found.');
+    throw AppError.notFound('AMC supplier not found.');
   }
 
   const duplicate = await amcSuppliersRepository.findAmcSupplierByName(
@@ -138,7 +111,6 @@ export async function updateAmcSupplier(
     input.name,
     id,
   );
-
   if (duplicate) {
     throw AppError.conflict(
       'AMC_SUPPLIER_NAME_TAKEN',
@@ -146,8 +118,7 @@ export async function updateAmcSupplier(
     );
   }
 
-  const changes = diffFields(current, { ...current, name: input.name }, ['name']);
-
+  const changes = diffFields({ name: current.name }, { name: input.name }, ['name']);
   if (changes.length === 0) {
     return toAmcSupplierDto(current);
   }
@@ -157,7 +128,6 @@ export async function updateAmcSupplier(
       name: input.name,
       updatedBy: user.userId,
     });
-
     await writeAuditLog(
       tx,
       changes.map((change) => ({
@@ -171,38 +141,24 @@ export async function updateAmcSupplier(
         changedBy: user.userId,
       })),
     );
-
     return row;
   });
 
   logger.info(
-    {
-      companyId: user.companyId,
-      amcSupplierId: id,
-      userId: user.userId,
-    },
-    'AMC Supplier updated',
+    { companyId: user.companyId, amcSupplierId: id, userId: user.userId },
+    'AMC supplier updated',
   );
-
   return toAmcSupplierDto(updated);
 }
 
-export async function deleteAmcSupplier(
-  user: AuthenticatedUser,
-  id: string,
-): Promise<void> {
-  const current = await amcSuppliersRepository.findAmcSupplierById(
-    user.companyId,
-    id,
-  );
-
+export async function deleteAmcSupplier(user: AuthenticatedUser, id: string): Promise<void> {
+  const current = await amcSuppliersRepository.findAmcSupplierById(user.companyId, id);
   if (!current) {
-    throw AppError.notFound('AMC Supplier not found.');
+    throw AppError.notFound('AMC supplier not found.');
   }
 
   await prisma.$transaction(async (tx) => {
     await amcSuppliersRepository.softDeleteAmcSupplier(tx, id, user.userId);
-
     await writeAuditLog(tx, {
       companyId: user.companyId,
       entityType: ENTITY_TYPE,
@@ -214,11 +170,7 @@ export async function deleteAmcSupplier(
   });
 
   logger.info(
-    {
-      companyId: user.companyId,
-      amcSupplierId: id,
-      userId: user.userId,
-    },
-    'AMC Supplier deleted',
+    { companyId: user.companyId, amcSupplierId: id, userId: user.userId },
+    'AMC supplier deleted',
   );
 }

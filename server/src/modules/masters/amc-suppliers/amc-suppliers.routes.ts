@@ -12,7 +12,8 @@ import {
 } from './amc-suppliers.schemas';
 
 /**
- * AMC Supplier master routes.
+ * AMC-supplier master routes. Mounted under /masters (which applies `authenticate` once), so the
+ * chain is auth (parent) -> rbac -> validate -> controller. All CRUD is gated on `master.manage`.
  */
 export const amcSuppliersRouter = Router();
 

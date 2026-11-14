@@ -1,9 +1,6 @@
 import { AppShell, Burger, Button, Group, NavLink, Text } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
-import {
-  IconLayoutDashboard,
-  IconStack2,
-} from '@tabler/icons-react';
+import { IconDeviceDesktop, IconLayoutDashboard, IconStack2 } from '@tabler/icons-react';
 import { Link, Outlet, useLocation } from 'react-router-dom';
 
 import { useAuth } from '@/auth/AuthContext';
@@ -16,17 +13,9 @@ interface NavItem {
 }
 
 const NAV_ITEMS: NavItem[] = [
-  {
-    label: 'Dashboard',
-    to: '/',
-    icon: IconLayoutDashboard,
-  },
-  {
-    label: 'Masters',
-    to: '/masters/categories',
-    icon: IconStack2,
-    permission: 'master.manage',
-  },
+  { label: 'Dashboard', to: '/', icon: IconLayoutDashboard },
+  { label: 'Assets', to: '/assets', icon: IconDeviceDesktop, permission: 'asset.read' },
+  { label: 'Masters', to: '/masters/categories', icon: IconStack2, permission: 'master.manage' },
 ];
 
 export function AppLayout() {
@@ -81,7 +70,7 @@ export function AppLayout() {
             active={
               item.to === '/'
                 ? location.pathname === '/'
-                : location.pathname.startsWith('/masters')
+                : location.pathname.startsWith(`/${item.to.split('/')[1]}`)
             }
             onClick={closeNav}
           />

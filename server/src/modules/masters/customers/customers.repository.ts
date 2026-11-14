@@ -3,9 +3,9 @@ import type { Prisma } from '@prisma/client';
 import { prisma } from '@/shared/prisma';
 
 /**
- * The one place the product_categories table is queried. Every read filters `company_id` AND
- * `is_deleted = false` — a missing filter is a tenant-leak bug, not a cosmetic one (CLAUDE.md).
- * Writes take a transaction client so the mutation and its audit row commit atomically.
+ * The one place the customers table is queried. Every read filters `company_id` AND
+ * `is_deleted = false`; writes take a transaction client. `email` is written as `string | null`,
+ * never `''` — the schema layer has already normalised it.
  */
 
 export type CustomerListSort = 'name' | 'createdAt';
@@ -20,7 +20,6 @@ interface ListParams {
   order: SortOrder;
 }
 
-/** Only the columns a DTO needs — never `select *` (CLAUDE.md). */
 const customerSelect = {
   id: true,
   name: true,
@@ -28,6 +27,8 @@ const customerSelect = {
   createdAt: true,
   updatedAt: true,
 } satisfies Prisma.CustomerSelect;
+
+export type CustomerRow = Prisma.CustomerGetPayload<{ select: typeof customerSelect }>;
 
 function baseWhere(companyId: string, search?: string): Prisma.CustomerWhereInput {
   return {
@@ -38,7 +39,6 @@ function baseWhere(companyId: string, search?: string): Prisma.CustomerWhereInpu
   };
 }
 
-/** One page of live customers plus the total for pagination meta. */
 export async function listCustomers(params: ListParams) {
   const where = baseWhere(params.companyId, params.search);
   const [rows, total] = await Promise.all([
@@ -61,11 +61,7 @@ export function findCustomerById(companyId: string, id: string) {
   });
 }
 
-/**
- * Live customer with the given name in this tenant, if any. Used for the duplicate check before
- * create/update; mirrors the filtered unique index ux_customers_company_name (WHERE is_deleted = 0).
- * `excludeId` lets an update ignore the row it is editing.
- */
+/** Mirrors ux_customers_company_name — the index covers name only, so emails may repeat. */
 export function findCustomerByName(companyId: string, name: string, excludeId?: string) {
   return prisma.customer.findFirst({
     where: {
@@ -80,32 +76,25 @@ export function findCustomerByName(companyId: string, name: string, excludeId?: 
 
 export function createCustomer(
   tx: Prisma.TransactionClient,
-  data: {
-    companyId: string;
-    name: string;
-    email: string | null;
-    createdBy: string;
-  },
+  data: { companyId: string; name: string; email: string | null; createdBy: string },
 ) {
   return tx.customer.create({
-    data: {
-      companyId: data.companyId,
-      name: data.name,
-      email: data.email,
-      createdBy: data.createdBy,
-    },
+    data,
     select: customerSelect,
   });
 }
+
 export function updateCustomer(
   tx: Prisma.TransactionClient,
   id: string,
-  data: { name: string;   email: string | null; updatedBy: string },
+  data: { name: string; email: string | null; updatedBy: string },
 ) {
   return tx.customer.update({
     where: { id },
     data: {
       name: data.name,
+      // Explicit null, not `undefined` — Prisma reads undefined as "leave it alone", which would
+      // stop a cleared email from actually clearing.
       email: data.email,
       updatedBy: data.updatedBy,
       updatedAt: new Date(),
@@ -114,19 +103,10 @@ export function updateCustomer(
   });
 }
 
-/** Soft delete — sets the flag and stamps who/when. The row is never physically removed. */
-export function softDeleteCustomer(
-  tx: Prisma.TransactionClient,
-  id: string,
-  deletedBy: string,
-) {
+export function softDeleteCustomer(tx: Prisma.TransactionClient, id: string, deletedBy: string) {
   return tx.customer.update({
     where: { id },
-    data: {
-      isDeleted: true,
-      deletedAt: new Date(),
-      deletedBy,
-    },
+    data: { isDeleted: true, deletedAt: new Date(), deletedBy },
     select: { id: true },
   });
 }

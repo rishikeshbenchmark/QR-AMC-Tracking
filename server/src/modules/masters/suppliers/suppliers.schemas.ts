@@ -1,12 +1,16 @@
 import { z } from 'zod';
 
 /**
- * Validation contract for the product-category master — the reference shape every other master
- * (make/model/supplier/customer) is cloned from. Name is trimmed at the boundary so trailing
- * whitespace never creates a "different" duplicate, and the tenant is never taken from the client
- * (it comes from the JWT in the service), so it does not appear here.
+ * Validation contract for the supplier master. Two differences from the category template: the name
+ * column is 255 wide, and there is an optional email.
+ *
+ * The email is the fiddly bit. An empty text input submits `''`, which is neither a valid address
+ * nor the same thing as "not provided". It is normalised to `undefined` here so the rest of the code
+ * only ever sees a string or `undefined`, and the service stores `?? null` — `null` is the correct
+ * "no email", never `''`.
  */
 const SUPPLIER_NAME_MAX = 255;
+const SUPPLIER_EMAIL_MAX = 255;
 
 const supplierName = z
   .string({ required_error: 'Name is required.' })
@@ -14,20 +18,23 @@ const supplierName = z
   .min(1, 'Name is required.')
   .max(SUPPLIER_NAME_MAX, `Name must be at most ${SUPPLIER_NAME_MAX} characters.`);
 
-  const supplierEmail = z
+const supplierEmail = z
   .string()
   .trim()
-  .max(255)
+  .max(SUPPLIER_EMAIL_MAX, `Email must be at most ${SUPPLIER_EMAIL_MAX} characters.`)
   .email('Enter a valid email address.')
   .optional()
   .or(z.literal('').transform(() => undefined));
-  
+
 export const createSupplierSchema = z.object({
   name: supplierName,
   email: supplierEmail,
 });
 
-/** Update replaces the whole editable surface — for a supplier that is just the name. */
+/**
+ * Update replaces the whole editable surface, so an omitted or blank email CLEARS the stored one.
+ * That is deliberate: a PUT is not a partial patch, and "I removed the address" must persist.
+ */
 export const updateSupplierSchema = z.object({
   name: supplierName,
   email: supplierEmail,
@@ -37,7 +44,6 @@ export const supplierIdParamSchema = z.object({
   id: z.string().uuid('Invalid supplier id.'),
 });
 
-/** Whitelisted list controls. Unknown sort/order values are rejected, never passed to the query. */
 export const listSuppliersQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(100).default(25),

@@ -1,6 +1,6 @@
 /**
- * The supplier shape returned to the client. Built explicitly by a mapper in the service — never a
- * raw Prisma entity — so tenant/audit/soft-delete columns never leak into a response.
+ * The supplier shape returned to the client. `email` is `string | null` — never `''`. Built
+ * explicitly by a mapper in the service, never a raw Prisma entity.
  */
 export interface SupplierDto {
   id: string;

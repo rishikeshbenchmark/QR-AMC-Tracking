@@ -16,8 +16,10 @@ interface MasterSelectProps {
   /**
    * Creates a new master row on the fly (the backend POST doubles as this path — CLAUDE.md). Resolves
    * with the created option so the field can select it immediately. Errors bubble to the caller.
+   * Omit it for a master that can't be created from a name alone (a model's make needs a category),
+   * and the create row is not offered.
    */
-  onCreate: (name: string) => Promise<MasterOption>;
+  onCreate?: (name: string) => Promise<MasterOption>;
   error?: string;
   required?: boolean;
   disabled?: boolean;
@@ -47,6 +49,8 @@ export function MasterSelect({
 }: MasterSelectProps) {
   const combobox = useCombobox({
     onDropdownClose: () => combobox.resetSelectedOption(),
+    // Focus the search box on open, so opening the picker and typing works without a second click.
+    onDropdownOpen: () => combobox.focusSearchInput(),
   });
 
   const [search, setSearch] = useState('');
@@ -61,10 +65,10 @@ export function MasterSelect({
   const hasExactMatch = data.some(
     (item) => item.label.toLowerCase() === trimmedSearch.toLowerCase(),
   );
-  const canCreate = trimmedSearch.length > 0 && !hasExactMatch;
+  const canCreate = onCreate !== undefined && trimmedSearch.length > 0 && !hasExactMatch;
 
   const handleCreate = async () => {
-    if (creating) return;
+    if (creating || !onCreate) return;
     setCreating(true);
     try {
       const created = await onCreate(trimmedSearch);

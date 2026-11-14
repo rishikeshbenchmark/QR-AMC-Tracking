@@ -4,9 +4,9 @@ import { getAuthUser } from '@/middlewares/auth.middleware';
 
 import * as suppliersService from './suppliers.service';
 import type {
-  SupplierIdParam,
   CreateSupplierInput,
   ListSuppliersQuery,
+  SupplierIdParam,
   UpdateSupplierInput,
 } from './suppliers.schemas';
 
@@ -14,7 +14,10 @@ import type {
 export const list: RequestHandler = async (req, res, next) => {
   try {
     const user = getAuthUser(req);
-    const result = await suppliersService.listSuppliers(user, req.query as unknown as ListSuppliersQuery);
+    const result = await suppliersService.listSuppliers(
+      user,
+      req.query as unknown as ListSuppliersQuery,
+    );
     res.status(200).json(result);
   } catch (error) {
     next(error);
@@ -49,7 +52,11 @@ export const update: RequestHandler = async (req, res, next) => {
   try {
     const user = getAuthUser(req);
     const { id } = req.params as SupplierIdParam;
-    const supplier = await suppliersService.updateSupplier(user, id, req.body as UpdateSupplierInput);
+    const supplier = await suppliersService.updateSupplier(
+      user,
+      id,
+      req.body as UpdateSupplierInput,
+    );
     res.status(200).json({ data: supplier });
   } catch (error) {
     next(error);

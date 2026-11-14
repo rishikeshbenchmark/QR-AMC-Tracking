@@ -10,7 +10,7 @@ import type {
   UpdateAmcSupplierInput,
 } from './amc-suppliers.schemas';
 
-/** GET /masters/amc-suppliers */
+/** GET /masters/amc-suppliers — paginated, searchable list for the current tenant. */
 export const list: RequestHandler = async (req, res, next) => {
   try {
     const user = getAuthUser(req);
@@ -36,7 +36,7 @@ export const getOne: RequestHandler = async (req, res, next) => {
   }
 };
 
-/** POST /masters/amc-suppliers */
+/** POST /masters/amc-suppliers — also the on-the-fly create used by <MasterSelect>. */
 export const create: RequestHandler = async (req, res, next) => {
   try {
     const user = getAuthUser(req);
@@ -66,7 +66,7 @@ export const update: RequestHandler = async (req, res, next) => {
   }
 };
 
-/** DELETE /masters/amc-suppliers/:id */
+/** DELETE /masters/amc-suppliers/:id — soft delete, returns 204. */
 export const remove: RequestHandler = async (req, res, next) => {
   try {
     const user = getAuthUser(req);

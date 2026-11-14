@@ -4,8 +4,8 @@ import { prisma } from '@/shared/prisma';
 
 /**
  * The one place the suppliers table is queried. Every read filters `company_id` AND
- * `is_deleted = false` — a missing filter is a tenant-leak bug, not a cosmetic one (CLAUDE.md).
- * Writes take a transaction client so the mutation and its audit row commit atomically.
+ * `is_deleted = false`; writes take a transaction client. `email` is written as `string | null`,
+ * never `''` — the schema layer has already normalised it.
  */
 
 export type SupplierListSort = 'name' | 'createdAt';
@@ -20,7 +20,6 @@ interface ListParams {
   order: SortOrder;
 }
 
-/** Only the columns a DTO needs — never `select *` (CLAUDE.md). */
 const supplierSelect = {
   id: true,
   name: true,
@@ -28,6 +27,8 @@ const supplierSelect = {
   createdAt: true,
   updatedAt: true,
 } satisfies Prisma.SupplierSelect;
+
+export type SupplierRow = Prisma.SupplierGetPayload<{ select: typeof supplierSelect }>;
 
 function baseWhere(companyId: string, search?: string): Prisma.SupplierWhereInput {
   return {
@@ -38,7 +39,6 @@ function baseWhere(companyId: string, search?: string): Prisma.SupplierWhereInpu
   };
 }
 
-/** One page of live suppliers plus the total for pagination meta. */
 export async function listSuppliers(params: ListParams) {
   const where = baseWhere(params.companyId, params.search);
   const [rows, total] = await Promise.all([
@@ -62,9 +62,8 @@ export function findSupplierById(companyId: string, id: string) {
 }
 
 /**
- * Live supplier with the given name in this tenant, if any. Used for the duplicate check before
- * create/update; mirrors the filtered unique index ux_suppliers_company_name (WHERE is_deleted = 0).
- * `excludeId` lets an update ignore the row it is editing.
+ * Live supplier with the given name. Mirrors ux_suppliers_company_name — the index covers name only,
+ * so two suppliers may legitimately share an email address.
  */
 export function findSupplierByName(companyId: string, name: string, excludeId?: string) {
   return prisma.supplier.findFirst({
@@ -80,15 +79,10 @@ export function findSupplierByName(companyId: string, name: string, excludeId?: 
 
 export function createSupplier(
   tx: Prisma.TransactionClient,
-  data: { companyId: string; name: string; email?: string; createdBy: string },
+  data: { companyId: string; name: string; email: string | null; createdBy: string },
 ) {
   return tx.supplier.create({
-    data: {
-      companyId: data.companyId,
-      name: data.name,
-      email: data.email,
-      createdBy: data.createdBy,
-    },
+    data,
     select: supplierSelect,
   });
 }
@@ -96,12 +90,14 @@ export function createSupplier(
 export function updateSupplier(
   tx: Prisma.TransactionClient,
   id: string,
-  data: { name: string; email?: string; updatedBy: string },
+  data: { name: string; email: string | null; updatedBy: string },
 ) {
   return tx.supplier.update({
     where: { id },
     data: {
       name: data.name,
+      // Explicit null, not `undefined` — Prisma would treat undefined as "leave it alone", which is
+      // exactly the bug that stops a cleared email from clearing.
       email: data.email,
       updatedBy: data.updatedBy,
       updatedAt: new Date(),
@@ -110,19 +106,10 @@ export function updateSupplier(
   });
 }
 
-/** Soft delete — sets the flag and stamps who/when. The row is never physically removed. */
-export function softDeleteSupplier(
-  tx: Prisma.TransactionClient,
-  id: string,
-  deletedBy: string,
-) {
+export function softDeleteSupplier(tx: Prisma.TransactionClient, id: string, deletedBy: string) {
   return tx.supplier.update({
     where: { id },
-    data: {
-      isDeleted: true,
-      deletedAt: new Date(),
-      deletedBy,
-    },
+    data: { isDeleted: true, deletedAt: new Date(), deletedBy },
     select: { id: true },
   });
 }

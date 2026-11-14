@@ -1,6 +1,7 @@
 /**
- * The AMC Supplier shape returned to the client. Built explicitly by a mapper in the service —
- * never a raw Prisma entity — so tenant/audit/soft-delete columns never leak into a response.
+ * The AMC-supplier shape returned to the client. These are the third parties who fulfil
+ * Back-to-Back AMC support and may differ from the seller — hence a separate master from suppliers.
+ * No email column on this one.
  */
 export interface AmcSupplierDto {
   id: string;

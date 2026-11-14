@@ -10,7 +10,7 @@ import type {
   UpdateModelInput,
 } from './models.schemas';
 
-/** GET /masters/models — paginated, searchable, optionally make-filtered list. */
+/** GET /masters/models — paginated, searchable, filterable by make or category. */
 export const list: RequestHandler = async (req, res, next) => {
   try {
     const user = getAuthUser(req);
@@ -33,7 +33,7 @@ export const getOne: RequestHandler = async (req, res, next) => {
   }
 };
 
-/** POST /masters/models — also the on-the-fly create path used by <MasterSelect>. */
+/** POST /masters/models — also the on-the-fly create used by <MasterSelect>. */
 export const create: RequestHandler = async (req, res, next) => {
   try {
     const user = getAuthUser(req);

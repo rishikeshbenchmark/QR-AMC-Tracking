@@ -4,14 +4,8 @@ import { prisma } from '@/shared/prisma';
 
 /**
  * The one place the product_models table is queried. Every read filters `company_id` AND
- * `is_deleted = false` — a missing filter is a tenant-leak bug, not a cosmetic one (CLAUDE.md).
- * Writes take a transaction client so the mutation and its audit row commit atomically.
- *
- * IMPORTANT — this is the one place this module differs from makes in a way that is easy to get
- * wrong: model-name uniqueness is per MAKE, not per company (ux_models_company_make_name on
- * (company_id, make_id, name)). "Latitude 5550" under Dell and "Latitude 5550" under HP are both
- * legal. findModelByName below takes makeId as a required argument for exactly this reason — do
- * not copy the make/category duplicate-check shape (companyId, name) here.
+ * `is_deleted = false`; writes take a transaction client. The nested select reaches through the make
+ * to the category so the DTO can carry the whole chain without a second query.
  */
 
 export type ModelListSort = 'name' | 'createdAt';
@@ -22,37 +16,42 @@ interface ListParams {
   skip: number;
   take: number;
   search?: string;
+  makeId?: string;
+  categoryId?: string;
   sort: ModelListSort;
   order: SortOrder;
-  makeId?: string;
 }
 
-/**
- * Only the columns a DTO needs — never `select *` (CLAUDE.md). The nested make select pulls the
- * parent's name in the same query (one round trip for the whole page, not one per row).
- */
 const modelSelect = {
   id: true,
   name: true,
   makeId: true,
   createdAt: true,
   updatedAt: true,
-  make: { select: { name: true } },
+  make: {
+    select: {
+      name: true,
+      categoryId: true,
+      category: { select: { name: true } },
+    },
+  },
 } satisfies Prisma.ProductModelSelect;
 
-function baseWhere(companyId: string, search?: string, makeId?: string): Prisma.ProductModelWhereInput {
+export type ModelRow = Prisma.ProductModelGetPayload<{ select: typeof modelSelect }>;
+
+function baseWhere(params: ListParams): Prisma.ProductModelWhereInput {
   return {
-    companyId,
+    companyId: params.companyId,
     isDeleted: false,
     // SQL Server's default collation is case-insensitive, so `contains` matches regardless of case.
-    ...(search ? { name: { contains: search } } : {}),
-    ...(makeId ? { makeId } : {}),
+    ...(params.search ? { name: { contains: params.search } } : {}),
+    ...(params.makeId ? { makeId: params.makeId } : {}),
+    ...(params.categoryId ? { make: { categoryId: params.categoryId, isDeleted: false } } : {}),
   };
 }
 
-/** One page of live models plus the total for pagination meta. */
 export async function listModels(params: ListParams) {
-  const where = baseWhere(params.companyId, params.search, params.makeId);
+  const where = baseWhere(params);
   const [rows, total] = await Promise.all([
     prisma.productModel.findMany({
       where,
@@ -74,13 +73,15 @@ export function findModelById(companyId: string, id: string) {
 }
 
 /**
- * Live model with the given name, WITHIN THE GIVEN MAKE, in this tenant, if any. Used for the
- * duplicate check before create/update; mirrors the filtered unique index
- * ux_models_company_make_name (WHERE is_deleted = 0). `makeId` is required, not optional — a model
- * name collision only matters within its own make. `excludeId` lets an update ignore the row it is
- * editing.
+ * Live model with this name UNDER THIS MAKE. Mirrors ux_models_company_make_name, which includes
+ * make_id — unlike every other master, the same model name is legal under a different make.
  */
-export function findModelByName(companyId: string, makeId: string, name: string, excludeId?: string) {
+export function findModelByName(
+  companyId: string,
+  makeId: string,
+  name: string,
+  excludeId?: string,
+) {
   return prisma.productModel.findFirst({
     where: {
       companyId,
@@ -98,12 +99,7 @@ export function createModel(
   data: { companyId: string; makeId: string; name: string; createdBy: string },
 ) {
   return tx.productModel.create({
-    data: {
-      companyId: data.companyId,
-      makeId: data.makeId,
-      name: data.name,
-      createdBy: data.createdBy,
-    },
+    data,
     select: modelSelect,
   });
 }
@@ -111,13 +107,13 @@ export function createModel(
 export function updateModel(
   tx: Prisma.TransactionClient,
   id: string,
-  data: { makeId: string; name: string; updatedBy: string },
+  data: { name: string; makeId: string; updatedBy: string },
 ) {
   return tx.productModel.update({
     where: { id },
     data: {
-      makeId: data.makeId,
       name: data.name,
+      makeId: data.makeId,
       updatedBy: data.updatedBy,
       updatedAt: new Date(),
     },
@@ -125,19 +121,10 @@ export function updateModel(
   });
 }
 
-/** Soft delete — sets the flag and stamps who/when. The row is never physically removed. */
-export function softDeleteModel(
-  tx: Prisma.TransactionClient,
-  id: string,
-  deletedBy: string,
-) {
+export function softDeleteModel(tx: Prisma.TransactionClient, id: string, deletedBy: string) {
   return tx.productModel.update({
     where: { id },
-    data: {
-      isDeleted: true,
-      deletedAt: new Date(),
-      deletedBy,
-    },
+    data: { isDeleted: true, deletedAt: new Date(), deletedBy },
     select: { id: true },
   });
 }
